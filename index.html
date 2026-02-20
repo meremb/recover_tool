@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Smart Heating Design Tool — Recover</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+
+<!-- Styles -->
+<link rel="stylesheet" href="css/style.css"/>
+
+<!-- Chart.js (CDN — no install needed) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<!--
+  JavaScript modules — load order matters:
+  1. config.js       → constants & catalogue data  (no deps)
+  2. state.js        → app state object             (depends on config.js constants)
+  3. domain/*        → pure physics engines         (depend on config.js constants)
+  4. services/*      → orchestration layer          (depends on domain/* + state)
+  5. ui/*            → UI callbacks                 (depends on everything above)
+-->
+
+<!-- 1. Config (constants, presets, pump library, valve catalogue) -->
+<script src="js/config.js"></script>
+
+<!-- 2. State (single source of truth) -->
+<script src="js/state.js"></script>
+
+<!-- 3. Domain — physics engines (mirrors domain/*.py) -->
+<script src="js/domain/heat_load.js"></script>
+<script src="js/domain/radiator.js"></script>
+<script src="js/domain/hydraulics.js"></script>
+<script src="js/domain/valve.js"></script>
+<script src="js/domain/valve_override.js"></script>
+
+<!-- 4. Services — orchestration (mirrors services/*.py) -->
+<script src="js/services/calculator.js"></script>
+
+<!-- 5. UI callbacks (mirrors ui/callbacks/*.py) -->
+<script src="js/ui/navigation.js"></script>
+<script src="js/ui/heat_loss.js"></script>
+<script src="js/ui/hydraulics.js"></script>
+<script src="js/ui/results.js"></script>
+
+<!-- App init -->
+<script>
+window.addEventListener('DOMContentLoaded', function () {
+  rebuildRoomTable();
+  rebuildCollectorTable();
+  applyInsulationPreset();
+  triggerHeatCalc();
+});
+</script>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a class="navbar-brand" href="#">
+    <svg width="32" height="32" viewBox="0 0 80 80" fill="none">
+      <polygon points="40,4 76,72 4,72" stroke="#40916c" stroke-width="5" fill="none"/>
+      <polygon points="10,20 36,20 36,66 10,66" stroke="white" stroke-width="3" fill="none" opacity=".5"/>
+      <text x="44" y="54" fill="#40916c" font-size="11" font-weight="bold" font-family="sans-serif">R</text>
+    </svg>
+    <span>Smart Heating Design Tool</span>
+  </a>
+  <div class="navbar-links">
+    <a href="#" onclick="goTab(0)">🏠 Start</a>
+    <a href="#" onclick="showHelp()">ℹ️ Help</a>
+  </div>
+</nav>
+
+<div class="app-container">
+
+  <!-- Step indicator -->
+  <div class="step-indicator" id="stepIndicator">
+    <div class="step active" id="step0"><div class="step-dot">0</div><div class="step-label">Start</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="step1"><div class="step-dot">1</div><div class="step-label">Heat Loss</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="step2"><div class="step-dot">2</div><div class="step-label">Radiators</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="step3"><div class="step-dot">3</div><div class="step-label">Results</div></div>
+  </div>
+
+  <!-- Tab buttons -->
+  <div class="tabs-header">
+    <button class="tab-btn active" onclick="goTab(0)" id="tbtn0">0️⃣ Start</button>
+    <button class="tab-btn" onclick="goTab(1)" id="tbtn1">1️⃣ Heat Loss</button>
+    <button class="tab-btn" onclick="goTab(2)" id="tbtn2">2️⃣ Radiators &amp; Collectors</button>
+    <button class="tab-btn" onclick="goTab(3)" id="tbtn3">3️⃣ Results</button>
+  </div>
+
+  <!-- ================================================================
+       TAB 0 — START
+  ================================================================ -->
+  <div class="tab-content active" id="tab0">
+    <div class="card">
+      <div class="card-body">
+        <div class="welcome-hero">
+          <h2>🌡️ Smart Heating Design Tool</h2>
+          <p>Design, size and balance hydronic heating systems — fully in your browser, no server needed.</p>
+        </div>
+
+        <h4>Step 1 — Design Mode</h4>
+        <div class="mode-options" id="designModeOptions">
+          <div class="mode-card selected" onclick="selectMode('existing',this)">
+            <div class="mode-card-title">🏠 Existing System</div>
+            <div class="mode-card-desc">Calculate required supply temperature for current radiators</div>
+          </div>
+          <div class="mode-card" onclick="selectMode('fixed',this)">
+            <div class="mode-card-title">🌡️ LT Dimensioning</div>
+            <div class="mode-card-desc">Fixed supply temperature → calculate extra radiator power needed</div>
+          </div>
+          <div class="mode-card" onclick="selectMode('pump',this)">
+            <div class="mode-card-title">♻️ Pump-Based Design</div>
+            <div class="mode-card-desc">Pump curve determines achievable flow via ΔT iteration</div>
+          </div>
+          <div class="mode-card" onclick="selectMode('balancing',this)">
+            <div class="mode-card-title">⚖️ Balancing Mode</div>
+            <div class="mode-card-desc">Determine TRV positions and flow distribution</div>
+          </div>
+        </div>
+        <div class="alert alert-secondary" id="modeHelpText">
+          <strong>Existing System:</strong> Calculate required supply temperature for current radiators.
+        </div>
+
+        <hr/>
+        <h4>Step 2 — Heat Loss Mode</h4>
+        <div class="radio-group">
+          <label class="radio-option" onclick="selectHeatMode('known',this)">
+            <input type="radio" name="heatMode" value="known"/>
+            🔒 Heat loads are <strong style="margin:0 4px">KNOWN</strong> — enter per-room heat losses manually
+          </label>
+          <label class="radio-option selected" onclick="selectHeatMode('unknown',this)">
+            <input type="radio" name="heatMode" value="unknown" checked/>
+            🧮 Heat loads are <strong style="margin:0 4px">UNKNOWN</strong> — let the tool calculate them
+          </label>
+        </div>
+        <div class="alert alert-info" style="margin-top:12px">
+          The heat-loss mode determines how the tool acquires per-room heat losses used throughout the design.
+        </div>
+
+        <div style="text-align:right;margin-top:20px">
+          <button class="btn btn-primary" onclick="goTab(1)">Continue to Heat Loss →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       TAB 1 — HEAT LOSS
+  ================================================================ -->
+  <div class="tab-content" id="tab1">
+    <div class="alert alert-secondary" id="heatModeBanner">
+      Mode: 🧮 Heat load is UNKNOWN — the tool will calculate room heat losses.
+    </div>
+
+    <div class="row" id="heatConfigCards">
+
+      <!-- Insulation presets -->
+      <div class="col-3">
+        <div class="card" id="buildingInsulationCard">
+          <div class="card-header">📐 Insulation Level</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Wall</label>
+              <select class="form-select" id="wallInsulationState" onchange="applyInsulationPreset()">
+                <option value="not insulated">Not Insulated (0 cm)</option>
+                <option value="bit insulated" selected>Insulated (5 cm)</option>
+                <option value="insulated well">Insulated well (10 cm)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Roof</label>
+              <select class="form-select" id="roofInsulationState" onchange="applyInsulationPreset()">
+                <option value="not insulated">Not insulated (0 cm)</option>
+                <option value="bit insulated" selected>Insulated (5 cm)</option>
+                <option value="insulated well">Insulated well (&gt;10 cm)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ground</label>
+              <select class="form-select" id="groundInsulationState" onchange="applyInsulationPreset()">
+                <option value="not insulated">Not insulated (0 cm)</option>
+                <option value="bit insulated" selected>Insulated (5 cm)</option>
+                <option value="insulated well">Insulated well (&gt;10 cm)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Glazing Type</label>
+              <select class="form-select" id="glazingType" onchange="applyGlazingPreset()">
+                <option value="single">Single</option>
+                <option value="double" selected>Double</option>
+                <option value="triple">Triple</option>
+              </select>
+            </div>
+            <div class="form-hint">Selecting a preset sets a typical U-value; override manually below.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Envelope U-values -->
+      <div class="col-3">
+        <div class="card" id="buildingEnvelopeCard">
+          <div class="card-header">🏠 Building Envelope (U-values)</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Wall U-value (W/m²K)</label>
+              <input class="form-input" type="number" id="uw" value="0.6" step="0.05" min="0.05" max="3" onchange="triggerHeatCalc()"/>
+              <div class="form-hint">External wall U-value</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Roof U-value (W/m²K)</label>
+              <input class="form-input" type="number" id="u_roof" value="0.4" step="0.05" min="0.05" max="3" onchange="triggerHeatCalc()"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ground U-value (W/m²K)</label>
+              <input class="form-input" type="number" id="u_ground" value="0.5" step="0.05" min="0.05" max="3" onchange="triggerHeatCalc()"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Glazing U-value (W/m²K)</label>
+              <input class="form-input" type="number" id="u_glass" value="2.8" step="0.05" min="0.3" max="6" onchange="triggerHeatCalc()"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Outdoor + num rooms -->
+      <div class="col-3">
+        <div class="card" id="outdoorConditionsCard">
+          <div class="card-header">🌡️ Outdoor Conditions</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Outdoor Temperature (°C)</label>
+              <input class="form-input" type="number" id="tout" value="-7" step="0.5" min="-20" max="20" onchange="triggerHeatCalc()"/>
+              <div class="form-hint">Design outdoor winter temperature</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">🏘️ Number of Rooms</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Rooms</label>
+              <input class="form-input" type="number" id="numRooms" value="3" step="1" min="1" max="30" style="max-width:120px" onchange="rebuildRoomTable()"/>
+              <div class="form-hint">Add rooms first, then fill in details.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional settings -->
+      <div class="col-3">
+        <div class="card" id="additionalSettingsCard">
+          <div class="card-header">⚙️ Additional Settings</div>
+          <div class="card-body" style="padding:12px">
+            <div class="accordion-item">
+              <button class="accordion-btn" onclick="toggleAccordion(this)">
+                💨 Ventilation Settings <span class="chevron">▼</span>
+              </button>
+              <div class="accordion-body">
+                <div class="form-group">
+                  <label class="form-label">Ventilation Method</label>
+                  <select class="form-select" id="ventCalcMethod" onchange="triggerHeatCalc()">
+                    <option value="simple" selected>Simple</option>
+                    <option value="NBN-D-50-001">NBN-D-50-001</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Ventilation System</label>
+                  <select class="form-select" id="vSystem" onchange="triggerHeatCalc()">
+                    <option value="C" selected>C</option>
+                    <option value="D">D</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Air Tightness v50 (1/h)</label>
+                  <input class="form-input" type="number" id="v50" value="6" step="0.5" min="0" max="12" onchange="triggerHeatCalc()"/>
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <button class="accordion-btn" onclick="toggleAccordion(this)">
+                🔍 Advanced Settings <span class="chevron">▼</span>
+              </button>
+              <div class="accordion-body">
+                <div class="form-group">
+                  <label class="form-label">Neighbour Temperature (°C)</label>
+                  <input class="form-input" type="number" id="neighbourT" value="18" step="0.5" onchange="triggerHeatCalc()"/>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Neighbour Loss Coeff (Un)</label>
+                  <input class="form-input" type="number" id="un" value="1.0" step="0.1" onchange="triggerHeatCalc()"/>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Infiltration Rate (LIR)</label>
+                  <input class="form-input" type="number" id="lir" value="0.2" step="0.05" onchange="triggerHeatCalc()"/>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Wall Height (m)</label>
+                  <input class="form-input" type="number" id="wallHeight" value="2.7" step="0.1" onchange="triggerHeatCalc()"/>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Room config table -->
+    <div class="card" id="roomConfigCard">
+      <div class="card-header">🧾 Room Configuration
+        <span class="text-muted" style="margin-left:8px;font-weight:400">Click cells to edit</span>
+      </div>
+      <div class="card-body" style="padding:12px">
+        <div class="table-wrap">
+          <table id="roomTable">
+            <thead><tr>
+              <th>Room #</th><th>Indoor Temp (°C)</th><th>Floor Area (m²)</th>
+              <th>Walls External</th><th>Room Type</th><th>On Ground</th><th>Under Roof</th>
+            </tr></thead>
+            <tbody id="roomTableBody"></tbody>
+          </table>
+        </div>
+        <div class="text-muted" style="margin-top:8px">Tip: Indoor Temp 10–24 °C · Walls external 1–4.</div>
+      </div>
+    </div>
+
+    <!-- Manual heat loss (shown only in 'known' mode) -->
+    <div class="card" id="manualLossCard" style="display:none">
+      <div class="card-header">✍️ Manual Room Heat Loss</div>
+      <div class="card-body" style="padding:12px">
+        <div class="table-wrap">
+          <table id="manualTable">
+            <thead><tr><th>Room #</th><th>Manual Heat Loss (W)</th></tr></thead>
+            <tbody id="manualTableBody"></tbody>
+          </table>
+        </div>
+        <div class="text-muted" style="margin-top:6px">Tab 2 &amp; 3 use these values instead of calculated ones.</div>
+      </div>
+    </div>
+
+    <!-- Results table -->
+    <div class="card card-highlight">
+      <div class="card-header">📊 Room Heat Loss Results</div>
+      <div class="card-body" style="padding:12px">
+        <div class="table-wrap" id="roomResultsTableWrap">
+          <div class="text-muted" style="padding:20px;text-align:center">Fill in room details above to see results.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       TAB 2 — RADIATORS & COLLECTORS
+  ================================================================ -->
+  <div class="tab-content" id="tab2">
+    <div class="row">
+
+      <!-- System config + pump -->
+      <div class="col-3">
+        <div class="card">
+          <div class="card-header">🛠️ System Configuration</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Number of Radiators</label>
+              <input class="form-input" type="number" id="numRadiators" value="3" min="1" step="1" onchange="rebuildRadiatorTable()"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Number of Collectors</label>
+              <input class="form-input" type="number" id="numCollectors" value="1" min="1" step="1" onchange="rebuildCollectorTable()"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Delta T (°C)</label>
+              <input class="form-input" type="number" id="deltaT" value="10" min="3" max="20" step="1"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Supply Temperature (°C) <span class="text-muted">(optional)</span></label>
+              <input class="form-input" type="number" id="supplyTempInput" placeholder="auto"/>
+            </div>
+            <div class="form-group">
+              <label class="check-option">
+                <input type="checkbox" id="fixDiameter" onchange="toggleFixedDiam()"/>
+                Fix diameter per radiator
+              </label>
+            </div>
+            <div id="fixedDiamContainer" style="display:none">
+              <div class="form-group">
+                <label class="form-label">Fixed Diameter (mm)</label>
+                <select class="form-select" id="fixedDiamValue">
+                  <option value="8">8</option><option value="10">10</option>
+                  <option value="12">12</option><option value="13">13</option>
+                  <option value="14">14</option><option value="16" selected>16</option>
+                  <option value="20">20</option><option value="22">22</option>
+                  <option value="25">25</option><option value="28">28</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="pumpSettingsCard" style="display:none">
+          <div class="card-header">♻️ Pump Settings</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Pump Model</label>
+              <select class="form-select" id="pumpModel">
+                <option value="Grundfos UPM3 15-70">Grundfos UPM3 15-70</option>
+                <option value="Wilo Yonos PICO 25-1/6">Wilo Yonos PICO 25-1/6</option>
+                <option value="Generic 25-60">Generic 25-60</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Speed</label>
+              <select class="form-select" id="pumpSpeed">
+                <option value="speed_1">Speed 1</option>
+                <option value="speed_2" selected>Speed 2</option>
+                <option value="speed_3">Speed 3</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Valve settings -->
+      <div class="col-3">
+        <div class="card">
+          <div class="card-header">🧩 Valve Settings</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Valve Type</label>
+              <select class="form-select" id="valveType" onchange="updateValveUI()">
+                <option value="Custom">Custom</option>
+                <option value="Danfoss RA-N 10 (3/8)">Danfoss RA-N 10 (3/8)</option>
+                <option value="Danfoss RA-N 15 (1/2)">Danfoss RA-N 15 (1/2)</option>
+                <option value="Danfoss RA-N 20 (3/4)">Danfoss RA-N 20 (3/4)</option>
+                <option value="Oventrop DN15 (1/2)">Oventrop DN15 (1/2)</option>
+                <option value="Heimeier (1/2)">Heimeier (1/2)</option>
+                <option value="Vogel und Noot">Vogel und Noot</option>
+                <option value="Comap">Comap</option>
+              </select>
+            </div>
+            <div id="valveSpecs" class="text-muted" style="margin-bottom:12px;font-size:12px"></div>
+            <div id="valveCustomSettings">
+              <div class="row" style="gap:8px">
+                <div class="col">
+                  <div class="form-group">
+                    <label class="form-label">Positions</label>
+                    <input class="form-input" type="number" id="valvePositions" value="8" min="2" step="1"/>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="form-group">
+                    <label class="form-label">Kv max</label>
+                    <input class="form-input" type="number" id="valveKvMax" value="0.7" min="0.01" step="0.05"/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Radiator + collector tables -->
+      <div class="col-6">
+        <div class="card">
+          <div class="card-header">🌡️ Radiator Inputs</div>
+          <div class="card-body" style="padding:12px">
+            <div class="table-wrap">
+              <table id="radiatorTable">
+                <thead><tr>
+                  <th>#</th><th>Room</th><th>Collector</th>
+                  <th>Power 75/65/20 (W)</th><th>Circuit Length (m)</th><th>Electric Power (W)</th>
+                </tr></thead>
+                <tbody id="radiatorTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">🧰 Collectors</div>
+          <div class="card-body" style="padding:12px">
+            <div class="table-wrap">
+              <table id="collectorTable">
+                <thead><tr><th>Collector</th><th>Circuit Length (m)</th></tr></thead>
+                <tbody id="collectorTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heat-loss split preview -->
+    <div class="card card-highlight">
+      <div class="card-header">📊 Radiator / Room Heat Loss Assignment</div>
+      <div class="card-body" style="padding:12px">
+        <div class="table-wrap" id="heatSplitTableWrap">
+          <div class="text-muted" style="padding:16px;text-align:center">Assign rooms in the radiator table above.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:right;margin-top:8px">
+      <button class="btn btn-primary" onclick="runCalculations()">▶ Run Calculations →</button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       TAB 3 — RESULTS
+  ================================================================ -->
+  <div class="tab-content" id="tab3">
+    <div class="alert alert-warn" id="resultsWarnings" style="display:none"></div>
+
+    <h4>Performance Metrics</h4>
+    <div class="metrics-row">
+      <div class="metric-card"><div class="metric-icon">🏠</div>
+        <div class="metric-value" id="mTotalHeatLoss">0 W</div>
+        <div class="metric-label">Total Heat Loss</div></div>
+      <div class="metric-card"><div class="metric-icon">🔥</div>
+        <div class="metric-value" id="mTotalPower">0 W</div>
+        <div class="metric-label">Total Radiator Power</div></div>
+      <div class="metric-card"><div class="metric-icon">💧</div>
+        <div class="metric-value" id="mFlowRate">0 kg/h</div>
+        <div class="metric-label">Total Flow Rate</div></div>
+      <div class="metric-card"><div class="metric-icon">📊</div>
+        <div class="metric-value" id="mDeltaT">0 °C</div>
+        <div class="metric-label">Weighted ΔT</div></div>
+      <div class="metric-card"><div class="metric-icon">🌡️</div>
+        <div class="metric-value" id="mHighestSupply">N/A</div>
+        <div class="metric-label">Highest Supply T</div></div>
+    </div>
+
+    <hr/>
+    <h5>System Performance Charts</h5>
+    <div class="row">
+      <div class="col-8">
+        <div class="card"><div class="card-header">Power Distribution</div>
+          <div class="card-body"><div class="chart-container"><canvas id="chartPower"></canvas></div></div></div>
+      </div>
+      <div class="col-4">
+        <div class="card"><div class="card-header">Temperature Profile</div>
+          <div class="card-body"><div class="chart-container"><canvas id="chartTemp"></canvas></div></div></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="card"><div class="card-header">Pressure Loss Analysis</div>
+          <div class="card-body"><div class="chart-container"><canvas id="chartPressure"></canvas></div></div></div>
+      </div>
+      <div class="col-6">
+        <div class="card"><div class="card-header">Mass Flow Rate</div>
+          <div class="card-body"><div class="chart-container"><canvas id="chartFlow"></canvas></div></div></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card"><div class="card-header">Pump vs System Curve</div>
+          <div class="card-body"><div class="chart-container"><canvas id="chartPump"></canvas></div></div></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card"><div class="card-header">Valve Position Analysis</div>
+          <div class="card-body"><div class="chart-container"><canvas id="chartValve"></canvas></div></div></div>
+      </div>
+    </div>
+
+    <!-- Valve balancing (shown only in balancing mode) -->
+    <div id="valveBalancingSection" style="display:none">
+      <hr/>
+      <h5>🔧 Valve Balancing</h5>
+      <div class="alert alert-info">
+        <strong>Balancing mode:</strong> Enter a position in <strong>Position Override</strong>
+        to fix a valve manually, then click <strong>Apply</strong> to trigger a full
+        hydraulic network re-solve.
+      </div>
+      <div class="table-wrap">
+        <table id="valveBalancingTable">
+          <thead><tr>
+            <th>Radiator #</th><th>Room</th><th>Flow (kg/h)</th><th>T return (°C)</th>
+            <th>Calc. Position</th><th>Valve ΔP (Pa)</th><th>Total ΔP (Pa)</th>
+            <th>Position Override</th>
+          </tr></thead>
+          <tbody id="valveBalancingBody"></tbody>
+        </table>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="applyValveOverrides()">▶ Apply Overrides</button>
+      <div id="overrideFeedback" class="text-success" style="margin-top:6px;font-size:12px"></div>
+    </div>
+
+    <hr/>
+    <h5>Summary</h5>
+    <div class="alert alert-info" id="summaryMetrics">Run calculations to see results.</div>
+
+    <hr/>
+    <h5>Detailed Results — Radiators</h5>
+    <div class="table-wrap" id="mergedResultsWrap">
+      <div class="text-muted" style="padding:20px;text-align:center">No results yet.</div>
+    </div>
+
+    <h5 style="margin-top:20px">Detailed Results — Collectors</h5>
+    <div class="table-wrap" id="collectorResultsWrap">
+      <div class="text-muted" style="padding:20px;text-align:center">No results yet.</div>
+    </div>
+  </div>
+
+</div><!-- end app-container -->
+</body>
+</html>
