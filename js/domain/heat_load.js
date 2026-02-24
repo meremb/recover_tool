@@ -126,7 +126,7 @@ function computeAllRooms(rooms, params) {
   return rooms.map(r => {
     const res = computeRoomHeatLoss(r, params, /* detail= */ true);
     return {
-      room:         r.id,
+      room:         r.name || `Room ${r.id}`,
       type:         r.type,
       totalHeatLoss:        res.totalHeatLoss,
       transmission:         res.transmissionHeatLoss,

@@ -11,6 +11,16 @@
 //  Room table
 // ---------------------------------------------------------------------------
 
+// Default room names based on index
+const DEFAULT_ROOM_NAMES = [
+  'Living Room', 'Kitchen', 'Master Bedroom', 'Bedroom 2',
+  'Bedroom 3', 'Bathroom', 'Toilet', 'Hallway', 'Study', 'Laundry',
+];
+
+function defaultRoomName(i) {
+  return DEFAULT_ROOM_NAMES[i - 1] || `Room ${i}`;
+}
+
 function rebuildRoomTable() {
   const n = Math.max(1, parseInt(document.getElementById('numRooms').value) || 3);
 
@@ -18,14 +28,15 @@ function rebuildRoomTable() {
   while (state.roomData.length < n) {
     const i = state.roomData.length + 1;
     state.roomData.push({
-      id: i, tin: 20, area: 10, wallsExt: 2,
+      id: i, name: defaultRoomName(i),
+      tin: 20, area: 10, wallsExt: 2,
       type: 'Living', onGround: false, underRoof: false,
     });
   }
   // Trim
   state.roomData = state.roomData.slice(0, n);
 
-  // Keep manual loss table in sync
+  // Keep manual loss table in sync (shares name from roomData)
   while (state.manualLossData.length < n) {
     const i = state.manualLossData.length + 1;
     state.manualLossData.push({ id: i, loss: 0 });
@@ -45,7 +56,16 @@ function renderRoomTable() {
   state.roomData.forEach((r, i) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${r.id}</td>
+      <td class="text-muted" style="font-size:11px;padding:6px 10px">${r.id}</td>
+      <td class="editable-cell">
+        <input type="text" value="${r.name}" placeholder="e.g. Living Room"
+          style="min-width:130px"
+          onchange="
+            state.roomData[${i}].name=this.value.trim()||'Room ${r.id}';
+            syncRoomDropdowns();
+            triggerHeatCalc();
+          "/>
+      </td>
       <td class="editable-cell">
         <input type="number" value="${r.tin}" min="10" max="24" step="0.5"
           onchange="state.roomData[${i}].tin=Math.min(24,Math.max(10,parseFloat(this.value)||20));triggerHeatCalc()"/>
@@ -56,7 +76,11 @@ function renderRoomTable() {
       </td>
       <td class="editable-cell">
         <select onchange="state.roomData[${i}].wallsExt=parseInt(this.value);triggerHeatCalc()">
-          ${[1,2,3,4].map(v => `<option value="${v}"${v===r.wallsExt?' selected':''}>${v}</option>`).join('')}
+            <option value="0"${r.wallsExt === 0 ? ' selected' : ''}>0%</option>
+            <option value="1"${r.wallsExt === 1 ? ' selected' : ''}>25%</option>
+            <option value="2"${r.wallsExt === 2 ? ' selected' : ''}>50%</option>
+            <option value="3"${r.wallsExt === 3 ? ' selected' : ''}>75%</option>
+            <option value="4"${r.wallsExt === 4 ? ' selected' : ''}>100%</option>
         </select>
       </td>
       <td class="editable-cell">
@@ -86,9 +110,10 @@ function renderManualTable() {
   tbody.innerHTML = '';
 
   state.manualLossData.forEach((r, i) => {
+    const name = state.roomData[i]?.name || `Room ${r.id}`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${r.id}</td>
+      <td>${name}</td>
       <td class="editable-cell">
         <input type="number" value="${r.loss}" min="0" step="10"
           onchange="state.manualLossData[${i}].loss=parseFloat(this.value)||0;triggerHeatCalc()"/>
@@ -126,8 +151,9 @@ function runHeatCalc() {
   };
 
   if (state.heatMode === 'known') {
-    state.roomResults = state.manualLossData.map(r => ({
-      room: r.id, totalHeatLoss: r.loss,
+    state.roomResults = state.manualLossData.map((r, i) => ({
+      room: state.roomData[i]?.name || `Room ${r.id}`,
+      totalHeatLoss: r.loss,
     }));
   } else {
     state.roomResults = computeAllRooms(state.roomData, params);
@@ -151,17 +177,17 @@ function renderRoomResults() {
   }
 
   const cols = known
-    ? ['Room', 'Total Heat Loss (W)']
-    : ['Room', 'Total Heat Loss (W)', 'Transmission (W)', 'Ventilation (W)', 'Infiltration (W)', 'Neighbour (W)'];
+    ? ['Room Name', 'Total Heat Loss (W)']
+    : ['Room Name', 'Total Heat Loss (W)', 'Transmission (W)', 'Ventilation (W)', 'Infiltration (W)', 'Neighbour (W)'];
 
   let html = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
 
   state.roomResults.forEach(r => {
     if (known) {
-      html += `<tr><td>${r.room}</td><td><strong>${r.totalHeatLoss}</strong></td></tr>`;
+      html += `<tr><td><strong>${r.room}</strong></td><td><strong>${r.totalHeatLoss}</strong></td></tr>`;
     } else {
       html += `<tr>
-        <td>${r.room}</td>
+        <td><strong>${r.room}</strong></td>
         <td><strong>${r.totalHeatLoss}</strong></td>
         <td>${r.transmission  || 0}</td>
         <td>${r.ventilation   || 0}</td>

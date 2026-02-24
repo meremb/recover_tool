@@ -342,9 +342,12 @@ function applyValveOverrides() {
 
   const tinMap = {};
   if (state.heatMode === 'known') {
-    state.manualLossData.forEach(r => { tinMap[`Room ${r.id}`] = 20; });
+    state.manualLossData.forEach((r, i) => {
+      const name = state.roomData[i]?.name || `Room ${r.id}`;
+      tinMap[name] = 20;
+    });
   } else {
-    state.roomData.forEach(r => { tinMap[`Room ${r.id}`] = r.tin; });
+    state.roomData.forEach(r => { tinMap[r.name || `Room ${r.id}`] = r.tin; });
   }
 
   // Yield to browser paint, then solve
