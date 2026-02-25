@@ -173,9 +173,9 @@ function _renderCharts(radResults, pumpCurvePoints, totalMFR, maxPressure, valve
       labels: radResults.map(r => `Rad ${r.id}`),
       datasets: [{
         label: 'Valve Position',
-        data: radResults.map(r => r.valvePos + 1),
+        data: radResults.map(r => r.valvePos),
         backgroundColor: radResults.map(r => {
-          const ratio = (r.valvePos + 1) / maxPos;
+          const ratio = (r.valvePos) / maxPos;
           if (ratio >= 0.9) return 'rgba(231,76,60,.7)';
           if (ratio >= 0.6) return 'rgba(230,126,34,.7)';
           return 'rgba(46,204,113,.7)';
@@ -263,10 +263,13 @@ function renderMergedResultsTable(radResults) {
   radResults.forEach(r => {
     const velBadge = r.velocity > 0.5
       ? `<span class="badge badge-red">${r.velocity}</span>` : r.velocity;
-    const posFrac  = (r.valvePos + 1) / maxPos;
+    const posFrac  = (r.valvePos) / maxPos;
     const posBadge = posFrac > 0.85
-      ? `<span class="badge badge-warn">${r.valvePos + 1}</span>` : `${r.valvePos + 1}`;
-    const epBadge  = r.extraPower > 0
+      ? `<span class="badge badge-warn">${r.valvePos}</span>` : `${r.valvePos}`;
+    const diamDisplay = r.diamFixed
+      ? `<span class="badge badge-warn" title="User-fixed diameter">${r.diam} mm ★</span>`
+      : `${r.diam} mm`;
+    const epBadge = r.extraPower > 0
       ? `<span class="badge badge-red">${r.extraPower}</span>` : (r.extraPower || 0);
 
     html += `<tr>
@@ -275,7 +278,7 @@ function renderMergedResultsTable(radResults) {
       <td>${isFixed ? epBadge : r.qRatio}</td>
       <td>${r.supplyT}</td><td>${r.returnT}</td>
       ${hasActual ? `<td>${r.actualOutput}</td>` : ''}
-      <td>${r.mfr}</td><td>${r.diam}</td>
+      <td>${r.mfr}</td><td>${diamDisplay}</td>
       <td>${r.pipeLoss}</td><td>${r.valveLoss}</td>
       <td>${r.totalCircuitLoss}</td><td>${velBadge}</td>
       <td>${posBadge}</td><td>${r.kvNeeded || '—'}</td>
@@ -319,7 +322,7 @@ function renderValveBalancingTable(radResults) {
     tr.innerHTML = `
       <td>${r.id}</td><td>${r.room}</td>
       <td>${r.mfr}</td><td>${r.returnT}</td>
-      <td>${r.valvePos + 1}</td><td>${r.valveLoss}</td><td>${r.totalCircuitLoss}</td>
+      <td>${r.valvePos}</td><td>${r.valveLoss}</td><td>${r.totalCircuitLoss}</td>
       <td class="editable-cell">
         <input type="number" placeholder="auto" value="${override || ''}" min="1" step="1"
           onchange="

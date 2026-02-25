@@ -77,11 +77,11 @@ function computeValvePositions(radResults, valveCfg, kvMax, nPositions) {
       valvePos = valveCfg.kv_values.findIndex(kv => kv >= kvNeeded);
       if (valvePos < 0) valvePos = valveCfg.kv_values.length - 1;
     } else {
-      const ratio = Math.min(Math.sqrt(Math.max(kvNeeded, 0) / kvMax), 1);
-      valvePos    = Math.ceil(ratio * (nPositions - 1));
+      const ratio = Math.min(Math.max(kvNeeded / kvMax, 0), 1);
+      ratioPos    = Math.min(Math.sqrt(ratio), 1);
     }
 
-    r.valvePos = Math.max(0, valvePos);
+    r.valvePos = Math.ceil(ratioPos *nPositions);
     r.kvNeeded = Math.round(kvNeeded * 1000) / 1000;
   });
 }

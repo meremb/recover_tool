@@ -1,8 +1,8 @@
 /**
  * ui/hydraulics.js
  * ================
- * Tab 2 UI: radiator table, collector table, heat-loss split preview,
- * and the main "Run Calculations" trigger.
+ * Tab 2 UI: radiator table (with per-radiator diameter override),
+ * collector table, heat-loss split preview, and the "Run Calculations" trigger.
  *
  * Mirrors: ui/callbacks/hydraulics.py
  */
@@ -21,7 +21,7 @@ function rebuildCollectorTable() {
   state.collectorData = state.collectorData.slice(0, n);
 
   renderCollectorTable();
-  rebuildRadiatorTable(); // radiator dropdowns depend on collector list
+  rebuildRadiatorTable();
 }
 
 function renderCollectorTable() {
@@ -58,14 +58,16 @@ function getRoomLabels() {
 }
 
 function rebuildRadiatorTable() {
-  const n         = Math.max(1, parseInt(document.getElementById('numRadiators').value) || 3);
-  const cols      = getCollectorNames();
-  const defCol    = cols[0] || 'Collector 1';
+  const n      = Math.max(1, parseInt(document.getElementById('numRadiators').value) || 3);
+  const cols   = getCollectorNames();
+  const defCol = cols[0] || 'Collector 1';
 
   while (state.radiatorData.length < n) {
     const i = state.radiatorData.length + 1;
     state.radiatorData.push({
-      id: i, room: '', collector: defCol, power: 2000, length: 10, elec: 0,
+      id: i, room: '', collector: defCol,
+      power: 2000, length: 10, elec: 0,
+      fixedDiam: null,   // null = auto-select; number (mm) = user override
     });
   }
   state.radiatorData = state.radiatorData.slice(0, n);
@@ -75,10 +77,14 @@ function rebuildRadiatorTable() {
 }
 
 function renderRadiatorTable() {
-  const tbody     = document.getElementById('radiatorTableBody');
-  tbody.innerHTML = '';
+  const tbody      = document.getElementById('radiatorTableBody');
+  tbody.innerHTML  = '';
   const rooms      = getRoomLabels();
   const collectors = getCollectorNames();
+  const showDiam   = document.getElementById('fixDiameter').checked;
+
+  // Show/hide the diameter column header
+  document.getElementById('thDiameter').style.display = showDiam ? '' : 'none';
 
   state.radiatorData.forEach((r, i) => {
     const roomOpts = rooms.map(rm =>
@@ -88,9 +94,14 @@ function renderRadiatorTable() {
       `<option value="${c}"${c === r.collector ? ' selected' : ''}>${c}</option>`
     ).join('');
 
+    // Diameter: dropdown of standard sizes with "auto" as first option
+    const diamOpts = POSSIBLE_DIAMETERS.map(d =>
+      `<option value="${d}"${r.fixedDiam === d ? ' selected' : ''}>${d} mm</option>`
+    ).join('');
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${r.id}</td>
+      <td class="text-muted" style="font-size:11px">${r.id}</td>
       <td class="editable-cell">
         <select onchange="state.radiatorData[${i}].room=this.value;renderHeatSplitTable()">
           <option value="">— select —</option>${roomOpts}
@@ -113,9 +124,22 @@ function renderRadiatorTable() {
         <input type="number" value="${r.elec}" min="0" step="10"
           onchange="state.radiatorData[${i}].elec=parseFloat(this.value)||0"/>
       </td>
+      <td class="editable-cell" style="display:${showDiam ? '' : 'none'}">
+        <select onchange="
+          const v=parseInt(this.value);
+          state.radiatorData[${i}].fixedDiam = isNaN(v) ? null : v;
+        ">
+          <option value="">auto</option>${diamOpts}
+        </select>
+      </td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+/** Re-render table when "Fix diameter per radiator" checkbox is toggled */
+function toggleFixedDiam() {
+  renderRadiatorTable();
 }
 
 /** Sync room dropdowns in Tab 2 whenever rooms change in Tab 1 */
@@ -131,38 +155,19 @@ function syncRoomDropdowns() {
 function renderHeatSplitTable() {
   const wrap = document.getElementById('heatSplitTableWrap');
 
-  // Create a map of room names to their heat loss and radiator count
   const lossMap = {};
-  const radiatorCountMap = {};
-
-  // Populate the maps with room data
-  state.roomResults.forEach(r => {
-    lossMap[r.room] = r.totalHeatLoss;
-  });
-
-  // Count radiators per room
-  state.radiatorData.forEach(r => {
-    if (r.room) {
-      radiatorCountMap[r.room] = (radiatorCountMap[r.room] || 0) + 1;
-    }
-  });
+  state.roomResults.forEach(r => { lossMap[r.room] = r.totalHeatLoss; });
 
   let html = `<table><thead><tr>
     <th>Radiator #</th><th>Room</th><th>Calculated Heat Loss (W)</th>
   </tr></thead><tbody>`;
 
   state.radiatorData.forEach(r => {
-    // Calculate the split heat loss for each radiator in the room
-    const room = r.room;
-    const totalLoss = lossMap[room];
-    const radiatorCount = radiatorCountMap[room] || 1;
-    const splitLoss = room && totalLoss !== undefined ? Math.round(totalLoss / radiatorCount) : '—';
-
-
-    html += `<tr><td>${r.id}</td><td>${room || '—'}</td><td>${splitLoss}</td></tr>`;
+    const loss = r.room && lossMap[r.room] !== undefined ? lossMap[r.room] : '—';
+    html += `<tr><td>${r.id}</td><td>${r.room || '—'}</td><td>${loss}</td></tr>`;
   });
 
-  html += `</tbody></table>`;
+  html += '</tbody></table>';
   wrap.innerHTML = html;
 }
 
@@ -180,7 +185,6 @@ function runCalculations() {
     return;
   }
 
-  // Collect all UI inputs
   const deltaT     = getN('deltaT', 10);
   const supplyVal  = document.getElementById('supplyTempInput').value;
   let fixedSupplyT = (supplyVal && supplyVal.trim() !== '') ? parseFloat(supplyVal) : null;
@@ -188,8 +192,6 @@ function runCalculations() {
   // Disable supply-T for auto-compute modes
   if ([MODE_EXISTING, MODE_BALANCING].includes(state.designMode)) fixedSupplyT = null;
 
-  const fixDiam      = document.getElementById('fixDiameter').checked;
-  const fixedDiamVal = fixDiam ? parseFloat(document.getElementById('fixedDiamValue').value) : null;
   const valveType    = document.getElementById('valveType').value;
   const valveCfg     = VALVE_CATALOGUE[valveType] || null;
   const nPositions   = parseInt(document.getElementById('valvePositions').value) || 8;
@@ -198,7 +200,7 @@ function runCalculations() {
   const pumpSpeed    = document.getElementById('pumpSpeed').value;
   const pumpCurvePoints = PUMP_LIBRARY[pumpModel]?.[pumpSpeed] || [];
 
-  // Build room maps — key is room name (matches state.roomResults[].room)
+  // Build room maps (keyed by room name)
   const lossMap = {}, tinMap = {};
   state.roomResults.forEach(r => { lossMap[r.room] = r.totalHeatLoss; });
   if (state.heatMode === 'known') {
@@ -211,8 +213,9 @@ function runCalculations() {
   }
 
   // Delegate all physics to services/calculator.js
+  // fixedDiam is now PER RADIATOR (stored in state.radiatorData[i].fixedDiam)
   state.calcResults = runFullCalculation({
-    deltaT, fixedSupplyT, fixedDiamVal,
+    deltaT, fixedSupplyT,
     valveCfg, kvMax, nPositions,
     pumpCurvePoints, valveType,
     lossMap, tinMap,

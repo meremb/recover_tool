@@ -321,7 +321,7 @@ window.addEventListener('DOMContentLoaded', function () {
         <div class="table-wrap">
           <table id="roomTable">
             <thead><tr>
-              <th>#</th><th>Room #</th><th>Indoor Temp (°C)</th><th>Floor Area (m²)</th>
+              <th>#</th><th>Room Name</th><th>Indoor Temp (°C)</th><th>Floor Area (m²)</th>
               <th>Walls External</th><th>Room Type</th><th>On Ground</th><th>Under Roof</th>
             </tr></thead>
             <tbody id="roomTableBody"></tbody>
@@ -337,7 +337,7 @@ window.addEventListener('DOMContentLoaded', function () {
       <div class="card-body" style="padding:12px">
         <div class="table-wrap">
           <table id="manualTable">
-            <thead><tr><th>Room #</th><th>Manual Heat Loss (W)</th></tr></thead>
+            <thead><tr><th>Room Name</th><th>Manual Heat Loss (W)</th></tr></thead>
             <tbody id="manualTableBody"></tbody>
           </table>
         </div>
@@ -386,20 +386,9 @@ window.addEventListener('DOMContentLoaded', function () {
             <div class="form-group">
               <label class="check-option">
                 <input type="checkbox" id="fixDiameter" onchange="toggleFixedDiam()"/>
-                Fix diameter per radiator
+                Override diameter per radiator
               </label>
-            </div>
-            <div id="fixedDiamContainer" style="display:none">
-              <div class="form-group">
-                <label class="form-label">Fixed Diameter (mm)</label>
-                <select class="form-select" id="fixedDiamValue">
-                  <option value="8">8</option><option value="10">10</option>
-                  <option value="12">12</option><option value="13">13</option>
-                  <option value="14">14</option><option value="16" selected>16</option>
-                  <option value="20">20</option><option value="22">22</option>
-                  <option value="25">25</option><option value="28">28</option>
-                </select>
-              </div>
+              <div class="form-hint">When checked, a diameter column appears in the radiator table.</div>
             </div>
           </div>
         </div>
@@ -476,6 +465,7 @@ window.addEventListener('DOMContentLoaded', function () {
                 <thead><tr>
                   <th>#</th><th>Room</th><th>Collector</th>
                   <th>Power 75/65/20 (W)</th><th>Circuit Length (m)</th><th>Electric Power (W)</th>
+                  <th id="thDiameter" style="display:none">Pipe Diameter</th>
                 </tr></thead>
                 <tbody id="radiatorTableBody"></tbody>
               </table>

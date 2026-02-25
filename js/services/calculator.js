@@ -61,51 +61,141 @@ function calcWeightedDeltaT(radResults) {
 }
 
 /**
- * Compute per-radiator results (thermal + pipe diameter + valve pressure).
- * Mirrors calculate_radiator_data_with_extra_power.
+ * Compute per-radiator results (thermal + hydraulic).
+ *
+ * For fixed supply temperature (LT / MODE_FIXED), mirrors Python exactly:
+ *   - extraPower per radiator at (supplyT, supplyT−ΔT, tin)
+ *   - qRatio = (heatLoss − elec) / (qNom + extraPower)
+ *   - Radiator heat_loss = heatLoss + extraPower  →  mfr sized on boosted loss
+ *   - Supply locked to fixedSupplyT for every radiator (no max() locking)
+ *   - Return temperature and mfr re-derived from adjusted qRatio
+ *   - Each radiator gets its own diameter from its own mfr
+ *
+ * For auto supply (existing / balancing modes):
+ *   - qRatio = heatLoss / qNom, supplyT derived from EN 442
+ *   - All radiators locked to the highest required supply temperature
+ *   - Uniform diameter (worst-case)
  */
 function computeRadiatorResults(
   radInputs, lossMap, tinMap,
-  fixedSupplyT, deltaT, fixedDiamVal,
+  fixedSupplyT, deltaT,
   valveCfg, kvMax, nPositions, warnings,
 ) {
   const kvValveOpen = valveCfg
     ? valveCfg.kv_values[valveCfg.kv_values.length - 1]
     : kvMax;
 
-  return radInputs.map(r => {
-    const heatLoss = (lossMap[r.room] || 0) + (r.elec || 0);
-    const tin      = tinMap[r.room] || 20;
-    const qNom     = r.power || 2000;
-    const qRatio   = qNom > 0 ? heatLoss / qNom : 0;
+  if (fixedSupplyT !== null) {
+    // ── Fixed supply temperature (LT dimensioning mode) ───────────────────
+    // Mirror Python loop exactly — no max-supply locking, no uniform diameter.
+    const rows = radInputs.map(r => {
+      const baseLoss = lossMap[r.room] || 0;
+      const elec     = r.elec || 0;
+      const tin      = tinMap[r.room] || 20;
+      const qNom     = r.power || 2000;
 
-    let supplyT;
-    if (fixedSupplyT !== null) {
-      supplyT = fixedSupplyT;
-    } else {
-      supplyT = calcSupplyTemp(qRatio, deltaT, tin);
-    }
-    const returnT  = calcReturnTemp(supplyT, qRatio, tin);
-    const mfr      = calcMassFlowRate(heatLoss, supplyT, returnT);
-    const diam     = fixedDiamVal || selectPipeDiam(Math.max(mfr, 0.1));
-    const pipeLoss = calcPipePressureLoss(r.length, diam, mfr);
-    const totalLossRad = calcRadiatorKv(r.length, diam, mfr);
-    const valveLoss = Math.round(
-      HYDRAULIC_CONST * Math.pow(Math.max(mfr, 0.001) / 1000 / kvValveOpen, 2) * 10
-    ) / 10;
+      // Extra power needed at the fixed supply temp + design return temp
+      const returnTDesign = calcReturnTempFixed(fixedSupplyT, deltaT, tin);
+      const extraPower    = calcExtraPowerNeeded(qNom, baseLoss, fixedSupplyT, deltaT, tin);
 
-    // LT-mode extra power
-    const extraPower = (state.designMode === MODE_FIXED && fixedSupplyT !== null)
-      ? calcExtraPowerNeeded(qNom, heatLoss, fixedSupplyT, deltaT, tin)
-      : 0;
+      // qRatio: thermal load net of electric boost / effective radiator capacity
+      const thermalLoad = Math.max(baseLoss - elec, 0);
+      const qRatio      = (qNom + extraPower) > 0 ? thermalLoad / (qNom + extraPower) : 0;
 
-    return {
-      id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
-      heatLoss, qNom, qRatio: Math.round(qRatio * 1000) / 1000, extraPower,
-      supplyT, returnT, mfr, diam, pipeLoss,
-      totalLoss: totalLossRad, valveLoss, length: r.length,
-    };
-  });
+      // Radiator heat loss boosted by extra power → mfr sized on this
+      const boostedLoss = baseLoss + extraPower;
+
+      // Return temperature using adjusted qRatio (algebraically consistent).
+      // Clamp to [tin+0.1, supplyT-0.1] — negative ΔT is physically impossible.
+      const returnTRaw = calcReturnTemp(fixedSupplyT, qRatio, tin);
+      const returnT    = Math.min(returnTRaw, fixedSupplyT - 0.1);
+      const mfr        = calcMassFlowRate(boostedLoss, fixedSupplyT, returnT);
+
+      // Per-radiator diameter from its own mfr
+      const autoDiam = selectPipeDiam(Math.max(mfr, 0.1));
+      const diam     = (r.fixedDiam != null) ? r.fixedDiam : autoDiam;
+
+      if (r.fixedDiam != null && r.fixedDiam < autoDiam) {
+        warnings.push(
+          `⚠ Radiator ${r.id} (${r.room}): fixed Ø${r.fixedDiam} mm may be undersized ` +
+          `for flow ${Math.round(mfr)} kg/h (auto would select Ø${autoDiam} mm)`
+        );
+      }
+
+      const pipeLoss     = calcPipePressureLoss(r.length, diam, mfr);
+      const totalLossRad = calcRadiatorKv(r.length, diam, mfr);
+      const valveLoss    = Math.round(
+        HYDRAULIC_CONST * Math.pow(Math.max(mfr, 0.001) / 1000 / kvValveOpen, 2) * 10
+      ) / 10;
+
+      return {
+        id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
+        heatLoss: baseLoss, qNom,
+        qRatio: Math.round(qRatio * 1000) / 1000,
+        extraPower,
+        supplyT: fixedSupplyT, returnT, mfr,
+        diam, diamAuto: autoDiam, diamFixed: r.fixedDiam != null,
+        pipeLoss, totalLoss: totalLossRad, valveLoss, length: r.length,
+      };
+    });
+    return rows;
+
+  } else {
+    // ── Auto supply temperature (existing / balancing modes) ──────────────
+    // Step 1: per-radiator supply temps from qRatio
+    const rows = radInputs.map(r => {
+      const heatLoss = (lossMap[r.room] || 0) + (r.elec || 0);
+      const tin      = tinMap[r.room] || 20;
+      const qNom     = r.power || 2000;
+      const qRatio   = qNom > 0 ? heatLoss / qNom : 0;
+      const supplyT  = calcSupplyTemp(qRatio, deltaT, tin);
+      return { r, heatLoss, tin, qNom, qRatio, supplyT };
+    });
+
+    // Step 2: lock all to the highest required supply temperature
+    const maxSupply = Math.max(...rows.map(x => x.supplyT));
+
+    // Step 3: re-derive returnT, mfr at maxSupply; uniform worst-case diameter
+    const resolved = rows.map(x => {
+      const { r, heatLoss, tin, qNom, qRatio } = x;
+      const returnT  = calcReturnTemp(maxSupply, qRatio, tin);
+      const mfr      = calcMassFlowRate(heatLoss, maxSupply, returnT);
+      return { r, heatLoss, tin, qNom, qRatio, supplyT: maxSupply, returnT, mfr };
+    });
+
+    const uniformDiam = Math.max(
+      ...resolved.map(x => selectPipeDiam(Math.max(x.mfr, 0.1)))
+    );
+
+    return resolved.map(x => {
+      const { r, heatLoss, tin, qNom, qRatio, supplyT, returnT, mfr } = x;
+      const autoDiam = uniformDiam;
+      const diam     = (r.fixedDiam != null) ? r.fixedDiam : uniformDiam;
+
+      if (r.fixedDiam != null && r.fixedDiam < autoDiam) {
+        warnings.push(
+          `⚠ Radiator ${r.id} (${r.room}): fixed Ø${r.fixedDiam} mm may be undersized ` +
+          `for flow ${Math.round(mfr)} kg/h (auto would select Ø${autoDiam} mm)`
+        );
+      }
+
+      const pipeLoss     = calcPipePressureLoss(r.length, diam, mfr);
+      const totalLossRad = calcRadiatorKv(r.length, diam, mfr);
+      const valveLoss    = Math.round(
+        HYDRAULIC_CONST * Math.pow(Math.max(mfr, 0.001) / 1000 / kvValveOpen, 2) * 10
+      ) / 10;
+
+      return {
+        id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
+        heatLoss, qNom,
+        qRatio: Math.round(qRatio * 1000) / 1000,
+        extraPower: 0,
+        supplyT, returnT, mfr,
+        diam, diamAuto: autoDiam, diamFixed: r.fixedDiam != null,
+        pipeLoss, totalLoss: totalLossRad, valveLoss, length: r.length,
+      };
+    });
+  }
 }
 
 /**
@@ -155,7 +245,7 @@ function buildTotalPressures(radResults, colResults) {
  */
 function solvePumpMode(
   pumpPts, deltaT, radInputs, lossMap, tinMap,
-  fixedDiamVal, valveCfg, kvMax, nPositions, warnings,
+  valveCfg, kvMax, nPositions, warnings,
 ) {
   let supplyT   = 55;
   let converged = false;
@@ -164,7 +254,7 @@ function solvePumpMode(
   for (let iter = 0; iter < 40; iter++) {
     radResults = computeRadiatorResults(
       radInputs, lossMap, tinMap,
-      supplyT, deltaT, fixedDiamVal,
+      supplyT, deltaT,
       valveCfg, kvMax, nPositions, warnings,
     );
     const colResults = computeCollectorResults(state.collectorData, radResults);
@@ -194,12 +284,12 @@ function solvePumpMode(
 /**
  * Run the full heating design calculation.
  *
- * @param {object} inputs - All UI inputs collected by navigation.js
+ * @param {object} inputs - All UI inputs collected by ui/hydraulics.js
  * @returns {object}      - calcResults stored in state.calcResults
  */
 function runFullCalculation(inputs) {
   const {
-    deltaT, fixedSupplyT, fixedDiamVal,
+    deltaT, fixedSupplyT,
     valveCfg, kvMax, nPositions,
     pumpCurvePoints, valveType,
     lossMap, tinMap,
@@ -212,14 +302,14 @@ function runFullCalculation(inputs) {
     const solved = solvePumpMode(
       pumpCurvePoints, deltaT,
       state.radiatorData, lossMap, tinMap,
-      fixedDiamVal, valveCfg, kvMax, nPositions, warnings,
+      valveCfg, kvMax, nPositions, warnings,
     );
     radResults = solved.radResults;
     warnings.push(`Pump mode converged → supply T ≈ ${solved.supplyT} °C`);
   } else {
     radResults = computeRadiatorResults(
       state.radiatorData, lossMap, tinMap,
-      fixedSupplyT, deltaT, fixedDiamVal,
+      fixedSupplyT, deltaT,
       valveCfg, kvMax, nPositions, warnings,
     );
   }

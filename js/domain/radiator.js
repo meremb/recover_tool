@@ -27,6 +27,10 @@ function calcSupplyTemp(qRatio, deltaT, tin) {
 /**
  * Calculate the return temperature given supply temperature and load ratio.
  *
+ * NOTE: This formula is valid only when supplyT was itself calculated from
+ * qRatio via calcSupplyTemp (i.e. the existing-system mode).
+ * For a fixed supply temperature use calcReturnTempFixed() instead.
+ *
  * @param {number} supplyT - Supply temperature [°C]
  * @param {number} qRatio  - Actual / rated heat output (–)
  * @param {number} tin     - Room temperature [°C]
@@ -38,6 +42,25 @@ function calcReturnTemp(supplyT, qRatio, tin) {
   const tret = Math.pow(qRatio, 1 / EXPONENT_N) * T_FACTOR *
                (Math.pow(qRatio, 1 / EXPONENT_N) * T_FACTOR) / lift + tin;
   return Math.round(tret * 10) / 10;
+}
+
+/**
+ * In LT (fixed supply temperature) mode, the system runs at the design ΔT.
+ * T_return = T_supply − deltaT  (by design).
+ *
+ * The radiator delivers Q_delivered = Q_nom × (LMTD_act / LMTD_nom)^n
+ * at these temperatures. If Q_delivered < heatLoss, the deficit is reported
+ * as extraPower. The flow is sized to carry Q_delivered at deltaT.
+ *
+ * Validation: sup=75, tin=20, dT=10 → T_ret=65, LMTD=49.83=LMTD_nom → Q_del=Q_nom ✓
+ *
+ * @param {number} supplyT - Fixed supply temperature [°C]
+ * @param {number} deltaT  - System design ΔT [K]
+ * @param {number} tin     - Room temperature [°C]
+ * @returns {number} Return temperature [°C]
+ */
+function calcReturnTempFixed(supplyT, deltaT, tin) {
+  return supplyT - deltaT;
 }
 
 /**
@@ -83,23 +106,60 @@ function lmtd(tSup, tRet, tRoom) {
 
 /**
  * Calculate extra power needed when a radiator is undersized for LT mode.
+ *
+ * Uses the actual return temperature (from calcReturnTempFixed) so that
+ * Q_delivered is computed with the physically correct LMTD, not the naive
+ * supplyT − deltaT estimate.
+ *
  * EN 442: Q_delivered = Q_nom × (LMTD_actual / LMTD_nom)^n
  *
  * @param {number} qNom    - Nominal power at 75/65/20 [W]
  * @param {number} heatLoss- Room design heat loss [W]
  * @param {number} supplyT - Fixed supply temperature [°C]
- * @param {number} deltaT  - System ΔT [K]
+ * @param {number} returnT - Actual return temperature [°C] from calcReturnTempFixed
  * @param {number} tin     - Room temperature [°C]
  * @returns {number} Extra power needed [W], 0 if radiator is sufficient
  */
-function calcExtraPowerNeeded(qNom, heatLoss, supplyT, deltaT, tin) {
-  if (!qNom || !heatLoss || deltaT <= 0) return 0;
-  const lmtdNom = lmtd(75, 65, 20);
-  const returnT = supplyT - deltaT;
-  const lmtdAct = lmtd(supplyT, returnT, tin);
-  if (lmtdAct <= 0) return Math.max(0, heatLoss);
-  const qDelivered = qNom * Math.pow(lmtdAct / lmtdNom, EXPONENT_N);
-  return Math.max(0, Math.round((heatLoss - qDelivered) * 10) / 10);
+function calcExtraPowerNeeded(
+  radiatorPower,
+  heatLoss,
+  supplyTemp,
+  deltaT,
+  spaceTemperature
+) {
+  // numeric coercion like Python
+  radiatorPower = Number(radiatorPower || 0.0);
+  heatLoss = Number(heatLoss || 0.0);
+  supplyTemp = Number(supplyTemp);
+  deltaT = Number(deltaT);
+  spaceTemperature = Number(spaceTemperature);
+
+  // finite check
+  if (
+    !Number.isFinite(radiatorPower) ||
+    !Number.isFinite(heatLoss) ||
+    !Number.isFinite(supplyTemp) ||
+    !Number.isFinite(deltaT) ||
+    !Number.isFinite(spaceTemperature)
+  ) return 0.0;
+
+  if (deltaT <= 0 || radiatorPower <= 0) return 0.0;
+
+  const tReturn = supplyTemp - deltaT;
+  const deltaTActual =
+    (supplyTemp + tReturn) / 2.0 - spaceTemperature;
+
+  if (deltaTActual <= 0) return 0.0;
+
+  const phi = Math.max(deltaTActual / DELTA_T_REF, 1e-6);
+  const availablePower =
+    Math.max(0.0, radiatorPower) *
+    Math.pow(phi, EXPONENT_N);
+
+  const extraActual = Math.max(0.0, heatLoss - availablePower);
+
+  // ⭐ important: convert back to rated power
+  return extraActual / Math.pow(phi, EXPONENT_N);
 }
 
 /**

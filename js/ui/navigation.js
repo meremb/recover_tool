@@ -130,10 +130,6 @@ function updateValveUI() {
   }
 }
 
-function toggleFixedDiam() {
-  const checked = document.getElementById('fixDiameter').checked;
-  document.getElementById('fixedDiamContainer').style.display = checked ? 'block' : 'none';
-}
 
 // ---------------------------------------------------------------------------
 //  Accordion widget

@@ -70,6 +70,7 @@ const T_FACTOR   = 49.83; // EN 442 radiator characteristic temperature [K]
 const EXPONENT_N = 1.34;  // EN 442 radiator exponent
 
 const POSSIBLE_DIAMETERS = [8, 10, 12, 13, 14, 16, 20, 22, 25, 28, 36, 50]; // mm
+DELTA_T_REF      = (75.0 + 65.0) / 2.0 - 20.0
 
 // Hydraulic constants
 const HYDRAULIC_CONST  = 97180.0; // Pa at (kg/s / kv)²
