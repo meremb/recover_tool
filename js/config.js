@@ -4,24 +4,16 @@
  * Application-wide constants: design modes, insulation presets,
  * pump library, valve catalogue, and physics constants.
  * No logic lives here — only data.
- *
- * Mirrors: config.py  +  domain/valve.py (_CATALOGUE)  +  domain/hydraulics.py (constants)
  */
 
 // ---------------------------------------------------------------------------
 //  Design modes
 // ---------------------------------------------------------------------------
-const MODE_EXISTING  = 'existing';   // Calc required supply T for current rads
-const MODE_FIXED     = 'fixed';      // Fixed supply T → extra power needed
-const MODE_PUMP      = 'pump';       // Pump curve determines flow
-const MODE_BALANCING = 'balancing';  // TRV positioning / balancing
-
-const MODE_HELP = {
-  [MODE_EXISTING]:  'Calculate required supply temperature for current radiators.',
-  [MODE_FIXED]:     'Choose a fixed supply temperature; tool calculates extra radiator power needed.',
-  [MODE_PUMP]:      'Selected pump/speed determines achievable flow via ΔT iteration.',
-  [MODE_BALANCING]: 'Determine TRV positions and flow distribution for balancing.',
-};
+// Unified mode: supply temperature input is optional.
+// - If fixedSupplyT is set → LT dimensioning (calculates extra power needed)
+// - If fixedSupplyT is null → existing system (calculates required supply T)
+const MODE_EXISTING  = 'existing';
+const MODE_FIXED     = 'fixed';
 
 // ---------------------------------------------------------------------------
 //  Building envelope presets
@@ -43,7 +35,6 @@ const GLAZING_U = {
 // ---------------------------------------------------------------------------
 const ROOM_TYPES = ['Living', 'Kitchen', 'Bedroom', 'Laundry', 'Bathroom', 'Toilet'];
 
-/** NBN-D-50-001 ventilation flow bounds [m³/h] per room type */
 const NBN_BOUNDS = {
   Living:   { min: 75,  max: 150 },
   Kitchen:  { min: 50,  max: 75  },
@@ -58,37 +49,34 @@ const NBN_BOUNDS = {
 // ---------------------------------------------------------------------------
 //  Physics constants
 // ---------------------------------------------------------------------------
-const BRIDGE_CORRECTION   = 0.05;        // Thermal bridge addition [W/(m²K)]
-const GROUND_TEMP         = 10.0;        // Assumed ground temp [°C]
-const GROUND_FACTOR       = 1.15 * 1.45; // EN 12831 ground area factors
-const INFILTRATION_FACTOR = 0.34;        // ρ·cp for air [Wh/(m³K)]
-const WALL_OFFSET         = 0.3;         // Half-thickness estimate [m]
+const BRIDGE_CORRECTION   = 0.05;
+const GROUND_TEMP         = 10.0;
+const GROUND_FACTOR       = 1.15 * 1.45;
+const INFILTRATION_FACTOR = 0.34;
+const WALL_OFFSET         = 0.3;
 
-const VENT_ACH = { C: 0.5, D: 0.5 * 0.3 }; // Air changes/hour by system type
+const VENT_ACH = { C: 0.5, D: 0.5 * 0.3 };
 
-const T_FACTOR   = 49.83; // EN 442 radiator characteristic temperature [K]
-const EXPONENT_N = 1.34;  // EN 442 radiator exponent
+const T_FACTOR   = 49.83;
+const EXPONENT_N = 1.34;
 
-const POSSIBLE_DIAMETERS = [8, 10, 12, 13, 14, 16, 20, 22, 25, 28, 36, 50]; // mm
-DELTA_T_REF      = (75.0 + 65.0) / 2.0 - 20.0
+const POSSIBLE_DIAMETERS = [8, 10, 12, 13, 14, 16, 20, 22, 25, 28, 36, 50];
+DELTA_T_REF = (75.0 + 65.0) / 2.0 - 20.0;
 
-// Hydraulic constants
-const HYDRAULIC_CONST  = 97180.0; // Pa at (kg/s / kv)²
-const LOCAL_LOSS       = 1.3;     // Fitting & bend factor
-const KV_RADIATOR      = 2.0;     // Radiator body kv [m³/h]
-const KV_COLLECTOR     = 14.66;   // Collector manifold kv [m³/h]
-const PRESSURE_BOILER  = 350.0;   // Fixed boiler/manifold loss [Pa]
-const WATER_DENSITY    = 1000.0;  // kg/m³
+const HYDRAULIC_CONST  = 97180.0;
+const LOCAL_LOSS       = 1.3;
+const KV_RADIATOR      = 2.0;
+const KV_COLLECTOR     = 14.66;
+const PRESSURE_BOILER  = 350.0;
+const WATER_DENSITY    = 1000.0;
 
-// Pipe kv polynomial: kv = A·d² + B·d + C  (d in metres)
 const KV_A =  51626.0;
 const KV_B = -417.39;
 const KV_C =   1.5541;
 
-// Valve override solver
 const MAX_ITERATIONS = 60;
 const TOLERANCE_PA   = 0.5;
-const MIN_FLOW       = 0.01; // kg/h floor
+const MIN_FLOW       = 0.01;
 
 // ---------------------------------------------------------------------------
 //  Pump library  (model → speed → [[flow kg/h, head kPa], ...])
@@ -112,7 +100,7 @@ const PUMP_LIBRARY = {
 };
 
 // ---------------------------------------------------------------------------
-//  Valve catalogue  (domain/valve.py _CATALOGUE)
+//  Valve catalogue
 // ---------------------------------------------------------------------------
 const VALVE_CATALOGUE = {
   'Danfoss RA-N 10 (3/8)': {

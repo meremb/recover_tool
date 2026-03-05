@@ -53,6 +53,8 @@ window.addEventListener('DOMContentLoaded', function () {
   rebuildCollectorTable();
   applyInsulationPreset();
   triggerHeatCalc();
+  updateHeatModeUI();
+  onSupplyTempChange();
 });
 </script>
 </head>
@@ -69,7 +71,7 @@ window.addEventListener('DOMContentLoaded', function () {
     <span>Smart Heating Design Tool</span>
   </a>
   <div class="navbar-links">
-    <a href="#" onclick="goTab(0)">🏠 Start</a>
+    <a href="#" onclick="goTab(0)">🏠 Heat Loss</a>
     <a href="#" onclick="showHelp()">ℹ️ Help</a>
   </div>
 </nav>
@@ -78,84 +80,41 @@ window.addEventListener('DOMContentLoaded', function () {
 
   <!-- Step indicator -->
   <div class="step-indicator" id="stepIndicator">
-    <div class="step active" id="step0"><div class="step-dot">0</div><div class="step-label">Start</div></div>
+    <div class="step active" id="step0"><div class="step-dot">1</div><div class="step-label">Heat Loss</div></div>
     <div class="step-line"></div>
-    <div class="step" id="step1"><div class="step-dot">1</div><div class="step-label">Heat Loss</div></div>
+    <div class="step" id="step1"><div class="step-dot">2</div><div class="step-label">Radiators</div></div>
     <div class="step-line"></div>
-    <div class="step" id="step2"><div class="step-dot">2</div><div class="step-label">Radiators</div></div>
-    <div class="step-line"></div>
-    <div class="step" id="step3"><div class="step-dot">3</div><div class="step-label">Results</div></div>
+    <div class="step" id="step2"><div class="step-dot">3</div><div class="step-label">Results</div></div>
   </div>
 
   <!-- Tab buttons -->
   <div class="tabs-header">
-    <button class="tab-btn active" onclick="goTab(0)" id="tbtn0">0️⃣ Start</button>
-    <button class="tab-btn" onclick="goTab(1)" id="tbtn1">1️⃣ Heat Loss</button>
-    <button class="tab-btn" onclick="goTab(2)" id="tbtn2">2️⃣ Radiators &amp; Collectors</button>
-    <button class="tab-btn" onclick="goTab(3)" id="tbtn3">3️⃣ Results</button>
+    <button class="tab-btn active" onclick="goTab(0)" id="tbtn0">1️⃣ Heat Loss</button>
+    <button class="tab-btn" onclick="goTab(1)" id="tbtn1">2️⃣ Radiators &amp; Collectors</button>
+    <button class="tab-btn" onclick="goTab(2)" id="tbtn2">3️⃣ Results</button>
   </div>
 
   <!-- ================================================================
-       TAB 0 — START
+       TAB 0 — HEAT LOSS
   ================================================================ -->
   <div class="tab-content active" id="tab0">
-    <div class="card">
-      <div class="card-body">
-        <div class="welcome-hero">
-          <h2>🌡️ Smart Heating Design Tool</h2>
-          <p>Design, size and balance hydronic heating systems — fully in your browser, no server needed.</p>
-        </div>
-
-        <h4>Step 1 — Design Mode</h4>
-        <div class="mode-options" id="designModeOptions">
-          <div class="mode-card selected" onclick="selectMode('existing',this)">
-            <div class="mode-card-title">🏠 Existing System</div>
-            <div class="mode-card-desc">Calculate required supply temperature for current radiators</div>
-          </div>
-          <div class="mode-card" onclick="selectMode('fixed',this)">
-            <div class="mode-card-title">🌡️ LT Dimensioning</div>
-            <div class="mode-card-desc">Fixed supply temperature → calculate extra radiator power needed</div>
-          </div>
-          <div class="mode-card" onclick="selectMode('pump',this)">
-            <div class="mode-card-title">♻️ Pump-Based Design</div>
-            <div class="mode-card-desc">Pump curve determines achievable flow via ΔT iteration</div>
-          </div>
-          <div class="mode-card" onclick="selectMode('balancing',this)">
-            <div class="mode-card-title">⚖️ Balancing Mode</div>
-            <div class="mode-card-desc">Determine TRV positions and flow distribution</div>
-          </div>
-        </div>
-        <div class="alert alert-secondary" id="modeHelpText">
-          <strong>Existing System:</strong> Calculate required supply temperature for current radiators.
-        </div>
-
-        <hr/>
-        <h4>Step 2 — Heat Loss Mode</h4>
-        <div class="radio-group">
-          <label class="radio-option" onclick="selectHeatMode('known',this)">
-            <input type="radio" name="heatMode" value="known"/>
-            🔒 Heat loads are <strong style="margin:0 4px">KNOWN</strong> — enter per-room heat losses manually
-          </label>
-          <label class="radio-option selected" onclick="selectHeatMode('unknown',this)">
+    <!-- Heat-loss mode selector -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header">🧮 Heat Loss Mode</div>
+      <div class="card-body" style="padding:16px 20px">
+        <div class="radio-group" style="flex-direction:row;gap:12px">
+          <label class="radio-option selected" onclick="selectHeatMode('unknown',this)" style="flex:1">
             <input type="radio" name="heatMode" value="unknown" checked/>
             🧮 Heat loads are <strong style="margin:0 4px">UNKNOWN</strong> — let the tool calculate them
           </label>
-        </div>
-        <div class="alert alert-info" style="margin-top:12px">
-          The heat-loss mode determines how the tool acquires per-room heat losses used throughout the design.
-        </div>
-
-        <div style="text-align:right;margin-top:20px">
-          <button class="btn btn-primary" onclick="goTab(1)">Continue to Heat Loss →</button>
+          <label class="radio-option" onclick="selectHeatMode('known',this)" style="flex:1">
+            <input type="radio" name="heatMode" value="known"/>
+            🔒 Heat loads are <strong style="margin:0 4px">KNOWN</strong> — enter per-room heat losses manually
+          </label>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ================================================================
-       TAB 1 — HEAT LOSS
-  ================================================================ -->
-  <div class="tab-content" id="tab1">
     <div class="alert alert-secondary" id="heatModeBanner">
       Mode: 🧮 Heat load is UNKNOWN — the tool will calculate room heat losses.
     </div>
@@ -357,12 +316,12 @@ window.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <!-- ================================================================
-       TAB 2 — RADIATORS & COLLECTORS
+       TAB 1 — RADIATORS & COLLECTORS
   ================================================================ -->
-  <div class="tab-content" id="tab2">
+  <div class="tab-content" id="tab1">
     <div class="row">
 
-      <!-- System config + pump -->
+      <!-- System config + pump check -->
       <div class="col-3">
         <div class="card">
           <div class="card-header">🛠️ System Configuration</div>
@@ -381,36 +340,19 @@ window.addEventListener('DOMContentLoaded', function () {
             </div>
             <div class="form-group">
               <label class="form-label">Supply Temperature (°C) <span class="text-muted">(optional)</span></label>
-              <input class="form-input" type="number" id="supplyTempInput" placeholder="auto"/>
+              <input class="form-input" type="number" id="supplyTempInput" placeholder="leave blank = auto"
+                oninput="onSupplyTempChange()"/>
+              <div class="form-hint">Blank → existing system mode. Fill in → LT dimensioning mode.</div>
             </div>
-            <div class="form-group">
+            <div id="calcModeHint" class="alert alert-secondary" style="font-size:13px;padding:8px 12px;margin-top:4px">
+              🔍 Existing system mode: required supply temperature will be calculated.
+            </div>
+            <div class="form-group" style="margin-top:12px">
               <label class="check-option">
                 <input type="checkbox" id="fixDiameter" onchange="toggleFixedDiam()"/>
                 Override diameter per radiator
               </label>
               <div class="form-hint">When checked, a diameter column appears in the radiator table.</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" id="pumpSettingsCard" style="display:none">
-          <div class="card-header">♻️ Pump Settings</div>
-          <div class="card-body">
-            <div class="form-group">
-              <label class="form-label">Pump Model</label>
-              <select class="form-select" id="pumpModel">
-                <option value="Grundfos UPM3 15-70">Grundfos UPM3 15-70</option>
-                <option value="Wilo Yonos PICO 25-1/6">Wilo Yonos PICO 25-1/6</option>
-                <option value="Generic 25-60">Generic 25-60</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Speed</label>
-              <select class="form-select" id="pumpSpeed">
-                <option value="speed_1">Speed 1</option>
-                <option value="speed_2" selected>Speed 2</option>
-                <option value="speed_3">Speed 3</option>
-              </select>
             </div>
           </div>
         </div>
@@ -502,9 +444,9 @@ window.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <!-- ================================================================
-       TAB 3 — RESULTS
+       TAB 2 — RESULTS
   ================================================================ -->
-  <div class="tab-content" id="tab3">
+  <div class="tab-content" id="tab2">
     <div class="alert alert-warn" id="resultsWarnings" style="display:none"></div>
 
     <h4>Performance Metrics</h4>
@@ -524,6 +466,9 @@ window.addEventListener('DOMContentLoaded', function () {
       <div class="metric-card"><div class="metric-icon">🌡️</div>
         <div class="metric-value" id="mHighestSupply">N/A</div>
         <div class="metric-label">Highest Supply T</div></div>
+      <div class="metric-card"><div class="metric-icon">⚡</div>
+        <div class="metric-value" id="mMaxPressure">0 Pa</div>
+        <div class="metric-label">System Pressure</div></div>
     </div>
 
     <hr/>
@@ -550,43 +495,31 @@ window.addEventListener('DOMContentLoaded', function () {
     </div>
     <div class="row">
       <div class="col-12">
-        <div class="card"><div class="card-header">Pump vs System Curve</div>
-          <div class="card-body"><div class="chart-container"><canvas id="chartPump"></canvas></div></div></div>
-      </div>
-    </div>
-    <div class="row">
-      <div class="col-12">
         <div class="card"><div class="card-header">Valve Position Analysis</div>
           <div class="card-body"><div class="chart-container"><canvas id="chartValve"></canvas></div></div></div>
       </div>
     </div>
 
-    <!-- Valve balancing (shown only in balancing mode) -->
-    <div id="valveBalancingSection" style="display:none">
-      <hr/>
-      <h5>🔧 Valve Balancing</h5>
-      <div class="alert alert-info">
-        <strong>Balancing mode:</strong> Enter a position in <strong>Position Override</strong>
-        to fix a valve manually, then click <strong>Apply</strong> to trigger a full
-        hydraulic network re-solve.
-      </div>
-      <div class="table-wrap">
-        <table id="valveBalancingTable">
-          <thead><tr>
-            <th>Radiator #</th><th>Room</th><th>Flow (kg/h)</th><th>T return (°C)</th>
-            <th>Calc. Position</th><th>Valve ΔP (Pa)</th><th>Total ΔP (Pa)</th>
-            <th>Position Override</th>
-          </tr></thead>
-          <tbody id="valveBalancingBody"></tbody>
-        </table>
-      </div>
-      <button class="btn btn-primary" style="margin-top:12px" onclick="applyValveOverrides()">▶ Apply Overrides</button>
-      <div id="overrideFeedback" class="text-success" style="margin-top:6px;font-size:12px"></div>
-    </div>
-
     <hr/>
     <h5>Summary</h5>
     <div class="alert alert-info" id="summaryMetrics">Run calculations to see results.</div>
+
+    <hr/>
+    <h5>🔄 Pump Check</h5>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-body" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;min-width:200px">
+          <label class="form-label">Pump Model</label>
+          <select class="form-select" id="pumpCheckModel">
+            <option value="Grundfos UPM3 15-70">Grundfos UPM3 15-70</option>
+            <option value="Wilo Yonos PICO 25-1/6">Wilo Yonos PICO 25-1/6</option>
+            <option value="Generic 25-60">Generic 25-60</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" onclick="runPumpCheck()" style="height:40px">🔍 Check Pump</button>
+      </div>
+      <div id="pumpCheckResult" style="padding:0 20px 16px"></div>
+    </div>
 
     <hr/>
     <h5>Detailed Results — Radiators</h5>

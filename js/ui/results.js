@@ -1,16 +1,10 @@
 /**
  * ui/results.js
  * =============
- * Tab 3 rendering: metric cards, six Chart.js charts, detailed results
- * tables, and the valve-balancing table with override/re-solve support.
- *
- * Mirrors: ui/callbacks/hydraulics.py  (results portion)
- *          ui/callbacks/valve.py       (balancing section)
+ * Tab 3 rendering: metric cards, charts, and detailed results tables.
+ * Pump curve chart removed — pump check is now a separate action in Tab 2.
  */
 
-// ---------------------------------------------------------------------------
-//  Chart instance registry
-// ---------------------------------------------------------------------------
 const chartInstances = {};
 
 function destroyChart(id) {
@@ -26,14 +20,13 @@ function renderResults() {
   const {
     radResults, colResults, warnings,
     weightedDT, totalMFR, maxPressure,
-    pumpCurvePoints, valveCfg, fixedSupplyT, deltaT,
+    valveCfg, fixedSupplyT, deltaT,
   } = state.calcResults;
 
   _renderWarnings(warnings);
-  _renderMetrics(radResults, totalMFR, weightedDT);
-  _renderSummary(radResults, totalMFR, weightedDT, maxPressure);
-  _renderCharts(radResults, pumpCurvePoints, totalMFR, maxPressure, valveCfg);
-  _renderBalancingSection();
+  _renderMetrics(radResults, totalMFR, weightedDT, maxPressure);
+  _renderSummary(radResults, totalMFR, weightedDT, maxPressure, fixedSupplyT);
+  _renderCharts(radResults, valveCfg);
   renderMergedResultsTable(radResults);
   renderCollectorResultsTable(colResults);
 }
@@ -44,8 +37,10 @@ function renderResults() {
 
 function _renderWarnings(warnings) {
   const div = document.getElementById('resultsWarnings');
-  if (warnings && warnings.length) {
-    div.innerHTML = warnings.map(w => `⚠️ ${w}`).join('<br/>');
+  // Filter out the mode info line to show separately
+  const realWarnings = warnings.filter(w => !w.startsWith('ℹ️'));
+  if (realWarnings.length) {
+    div.innerHTML = realWarnings.map(w => `${w}`).join('<br/>');
     div.style.display = 'block';
   } else {
     div.style.display = 'none';
@@ -56,9 +51,9 @@ function _renderWarnings(warnings) {
 //  Metric cards
 // ---------------------------------------------------------------------------
 
-function _renderMetrics(radResults, totalMFR, weightedDT) {
-  const totalHL      = radResults.reduce((s, r) => s + r.heatLoss, 0);
-  const totalPow     = radResults.reduce((s, r) => s + r.qNom, 0);
+function _renderMetrics(radResults, totalMFR, weightedDT, maxPressure) {
+  const totalHL       = radResults.reduce((s, r) => s + r.heatLoss, 0);
+  const totalPow      = radResults.reduce((s, r) => s + r.qNom, 0);
   const highestSupply = radResults.length ? Math.max(...radResults.map(r => r.supplyT)) : 0;
 
   document.getElementById('mTotalHeatLoss').textContent  = totalHL + ' W';
@@ -66,20 +61,20 @@ function _renderMetrics(radResults, totalMFR, weightedDT) {
   document.getElementById('mFlowRate').textContent       = Math.round(totalMFR * 10) / 10 + ' kg/h';
   document.getElementById('mDeltaT').textContent         = Math.round(weightedDT * 10) / 10 + ' °C';
   document.getElementById('mHighestSupply').textContent  = highestSupply + ' °C';
+  document.getElementById('mMaxPressure').textContent    = Math.round(maxPressure) + ' Pa';
 }
 
 // ---------------------------------------------------------------------------
 //  Summary bar
 // ---------------------------------------------------------------------------
 
-function _renderSummary(radResults, totalMFR, weightedDT, maxPressure) {
-  const totalHL         = radResults.reduce((s, r) => s + r.heatLoss, 0);
-  const totalPow        = radResults.reduce((s, r) => s + r.qNom, 0);
-  const totalExtraPow   = radResults.reduce((s, r) => s + (r.extraPower || 0), 0);
-  const modeLabel = {
-    existing: 'Existing System', fixed: 'LT Dimensioning',
-    pump: 'Pump-Based', balancing: 'Balancing',
-  }[state.designMode] || '';
+function _renderSummary(radResults, totalMFR, weightedDT, maxPressure, fixedSupplyT) {
+  const totalHL       = radResults.reduce((s, r) => s + r.heatLoss, 0);
+  const totalPow      = radResults.reduce((s, r) => s + r.qNom, 0);
+  const totalExtraPow = radResults.reduce((s, r) => s + (r.extraPower || 0), 0);
+  const modeLabel     = fixedSupplyT !== null
+    ? `LT Dimensioning (${fixedSupplyT} °C)`
+    : 'Existing System';
 
   let html = `<strong>Mode:</strong> ${modeLabel} &nbsp;|&nbsp;
     Heat loss: <strong>${totalHL} W</strong> &nbsp;|&nbsp;
@@ -88,7 +83,7 @@ function _renderSummary(radResults, totalMFR, weightedDT, maxPressure) {
     Weighted ΔT: <strong>${Math.round(weightedDT * 10) / 10} °C</strong> &nbsp;|&nbsp;
     Sys. pressure: <strong>${Math.round(maxPressure)} Pa</strong>`;
 
-  if (state.designMode === MODE_FIXED && totalExtraPow > 0)
+  if (fixedSupplyT !== null && totalExtraPow > 0)
     html += ` &nbsp;|&nbsp; ⚠️ Extra power needed: <strong>${Math.round(totalExtraPow)} W</strong>`;
 
   document.getElementById('summaryMetrics').innerHTML = html;
@@ -98,11 +93,13 @@ function _renderSummary(radResults, totalMFR, weightedDT, maxPressure) {
 //  Charts
 // ---------------------------------------------------------------------------
 
-function _renderCharts(radResults, pumpCurvePoints, totalMFR, maxPressure, valveCfg) {
+function _renderCharts(radResults, valveCfg) {
   const labels = radResults.map(r => `Rad ${r.id} (${r.room})`);
-  const barOpts = { responsive: true, maintainAspectRatio: false,
+  const barOpts = {
+    responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'top' } },
-    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } };
+    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+  };
 
   // 1. Power distribution
   destroyChart('chartPower');
@@ -111,10 +108,12 @@ function _renderCharts(radResults, pumpCurvePoints, totalMFR, maxPressure, valve
     data: { labels, datasets: [
       { label: 'Heat Loss (W)', data: radResults.map(r => r.heatLoss),
         backgroundColor: 'rgba(192,57,43,.75)', borderRadius: 4 },
-      { label: 'Radiator Power (W)', data: radResults.map(r => r.qNom),
+      { label: 'Radiator Power 75/65/20 (W)', data: radResults.map(r => r.qNom),
         backgroundColor: 'rgba(41,128,185,.45)', borderRadius: 4 },
+      { label: 'Electric power (W)', data: radResults.map(r => r.elec),
+        backgroundColor: 'rgba(192, 182, 43, 0.75)', borderRadius: 4 },
       ...(state.designMode === MODE_FIXED
-        ? [{ label: 'Extra Power (W)', data: radResults.map(r => r.extraPower || 0),
+        ? [{ label: 'Extra Power 75/65/20 (W)', data: radResults.map(r => r.extraPower || 0),
              backgroundColor: 'rgba(230,126,34,.75)', borderRadius: 4 }]
         : []),
     ]},
@@ -160,10 +159,7 @@ function _renderCharts(radResults, pumpCurvePoints, totalMFR, maxPressure, valve
     options: barOpts,
   });
 
-  // 5. Pump vs system curve
-  _renderPumpChart(pumpCurvePoints, totalMFR, maxPressure);
-
-  // 6. Valve positions
+  // 5. Valve positions
   destroyChart('chartValve');
   const maxPos = valveCfg ? valveCfg.positions
     : parseInt(document.getElementById('valvePositions').value) || 8;
@@ -186,54 +182,8 @@ function _renderCharts(radResults, pumpCurvePoints, totalMFR, maxPressure, valve
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: { x: { grid: { display: false } },
-                y: { beginAtZero: true, max: maxPos, title: { display: true, text: 'Position' } } } },
-  });
-}
-
-function _renderPumpChart(pumpCurvePoints, totalMFR, maxPressure) {
-  destroyChart('chartPump');
-  const qArr = [];
-  for (let q = 0; q <= 2000; q += 25) qArr.push(q);
-
-  const pumpHead = qArr.map(q => interpolatePump(pumpCurvePoints, q));
-
-  const K       = totalMFR > 0 ? maxPressure / (totalMFR * totalMFR) : 0;
-  const sysHead = qArr.map(q => K * q * q / 1000);
-
-  // Find operating point
-  let opQ = null, opH = null;
-  for (let i = 0; i < qArr.length - 1; i++) {
-    const p0 = pumpHead[i], p1 = pumpHead[i + 1];
-    if (p0 === null || p1 === null) continue;
-    const s0 = maxPressure / 1000 * Math.pow(qArr[i]   / Math.max(totalMFR, 1), 2);
-    const s1 = maxPressure / 1000 * Math.pow(qArr[i+1] / Math.max(totalMFR, 1), 2);
-    if ((p0 - s0) * (p1 - s1) <= 0) {
-      opQ = (qArr[i] + qArr[i + 1]) / 2;
-      opH = (p0 + p1) / 2;
-      break;
-    }
-  }
-
-  chartInstances['chartPump'] = new Chart(document.getElementById('chartPump'), {
-    type: 'line',
-    data: { labels: qArr, datasets: [
-      { label: 'Pump Curve (kPa)', data: pumpHead,
-        borderColor: 'rgba(41,128,185,1)', backgroundColor: 'rgba(41,128,185,.1)',
-        tension: 0.3, pointRadius: 0, fill: true },
-      { label: 'System Curve (kPa)', data: sysHead,
-        borderColor: 'rgba(231,76,60,1)', backgroundColor: 'rgba(231,76,60,.05)',
-        tension: 0.3, pointRadius: 0 },
-      ...(opQ ? [{ label: 'Operating Point',
-        data: [{ x: opQ, y: opH }], type: 'scatter',
-        pointStyle: 'crossRot', pointRadius: 12,
-        borderColor: '#e74c3c', backgroundColor: '#e74c3c' }] : []),
-    ]},
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
-      scales: {
-        x: { title: { display: true, text: 'Flow (kg/h)' }, grid: { display: false } },
-        y: { title: { display: true, text: 'Head (kPa)' }, beginAtZero: true },
-      } },
+                y: { beginAtZero: true, max: maxPos,
+                     title: { display: true, text: 'Position' } } } },
   });
 }
 
@@ -242,10 +192,10 @@ function _renderPumpChart(pumpCurvePoints, totalMFR, maxPressure) {
 // ---------------------------------------------------------------------------
 
 function renderMergedResultsTable(radResults) {
-  const wrap    = document.getElementById('mergedResultsWrap');
-  const isFixed = state.designMode === MODE_FIXED;
+  const wrap     = document.getElementById('mergedResultsWrap');
+  const isFixed  = state.designMode === MODE_FIXED;
   const hasActual = radResults[0]?.actualOutput !== undefined;
-  const maxPos  = state.calcResults?.valveCfg
+  const maxPos   = state.calcResults?.valveCfg
     ? state.calcResults.valveCfg.positions
     : parseInt(document.getElementById('valvePositions').value) || 8;
 
@@ -301,90 +251,4 @@ function renderCollectorResultsTable(colResults) {
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
-}
-
-// ---------------------------------------------------------------------------
-//  Valve balancing section
-// ---------------------------------------------------------------------------
-
-function _renderBalancingSection() {
-  const isBalancing = state.designMode === MODE_BALANCING;
-  document.getElementById('valveBalancingSection').style.display = isBalancing ? 'block' : 'none';
-}
-
-function renderValveBalancingTable(radResults) {
-  const tbody     = document.getElementById('valveBalancingBody');
-  tbody.innerHTML = '';
-
-  radResults.forEach(r => {
-    const override = state.valveOverrides[r.id];
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${r.id}</td><td>${r.room}</td>
-      <td>${r.mfr}</td><td>${r.returnT}</td>
-      <td>${r.valvePos}</td><td>${r.valveLoss}</td><td>${r.totalCircuitLoss}</td>
-      <td class="editable-cell">
-        <input type="number" placeholder="auto" value="${override || ''}" min="1" step="1"
-          onchange="
-            const v=parseInt(this.value);
-            if(this.value && !isNaN(v)) state.valveOverrides[${r.id}]=v;
-            else delete state.valveOverrides[${r.id}]
-          "
-          style="width:70px"/>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function applyValveOverrides() {
-  if (!state.calcResults) return;
-  const { radResults, colResults, valveCfg, kvMax, nPositions, deltaT, fixedSupplyT } = state.calcResults;
-  const fb = document.getElementById('overrideFeedback');
-  fb.textContent = '⏳ Solving network…';
-
-  const tinMap = {};
-  if (state.heatMode === 'known') {
-    state.manualLossData.forEach((r, i) => {
-      const name = state.roomData[i]?.name || `Room ${r.id}`;
-      tinMap[name] = 20;
-    });
-  } else {
-    state.roomData.forEach(r => { tinMap[r.name || `Room ${r.id}`] = r.tin; });
-  }
-
-  // Yield to browser paint, then solve
-  setTimeout(() => {
-    try {
-      const { rad, col, logs } = solveNetwork(
-        radResults, colResults,
-        state.valveOverrides,
-        valveCfg, kvMax, nPositions,
-        deltaT, fixedSupplyT, tinMap,
-        state.collectorData,
-      );
-
-      // Re-check velocities after solve
-      checkVelocities(rad, col);
-
-      const totalMFR   = rad.reduce((s, r) => s + r.mfr, 0);
-      const weightedDT = totalMFR > 0
-        ? rad.reduce((s, r) => s + r.mfr * (r.supplyT - r.returnT), 0) / totalMFR : 0;
-      const maxPressure = Math.max(...rad.map(r => r.totalCircuitLoss || 0));
-
-      state.calcResults = {
-        ...state.calcResults,
-        radResults: rad, colResults: col,
-        weightedDT, totalMFR, maxPressure,
-        warnings: [...logs],
-      };
-
-      renderValveBalancingTable(rad);
-      renderResults();
-      fb.textContent = '✅ Network re-solved. ' + (logs[0] || '');
-    } catch (e) {
-      fb.textContent = '❌ Solver error: ' + e.message;
-    }
-    setTimeout(() => (fb.textContent = ''), 6000);
-  }, 50);
 }
