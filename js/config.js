@@ -27,7 +27,7 @@ const INSULATION_U = {
 const GLAZING_U = {
   single: 5.0,
   double: 2.8,
-  double HR: 1.1,
+  doubleHR: 1.1,
   triple: 0.8,
 };
 
