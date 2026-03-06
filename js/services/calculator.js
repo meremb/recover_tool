@@ -51,11 +51,20 @@ function computeRadiatorResults(
   const kvValveOpen = valveCfg
     ? valveCfg.kv_values[valveCfg.kv_values.length - 1]
     : kvMax;
-
+  const radiatorCountMap = {};
+  state.radiatorData.forEach(r => {
+    if (r.room) {
+      radiatorCountMap[r.room] = (radiatorCountMap[r.room] || 0) + 1;
+    }
+  });
   if (fixedSupplyT !== null) {
     // ── LT Dimensioning: fixed supply temperature ─────────────────────────
     const rows = radInputs.map(r => {
-      const baseLoss = lossMap[r.room] || 0;
+      const totalLoss = lossMap[r.room] || 0;
+      const radiatorCount = radiatorCountMap[r.room] || 1;
+    // split heat loss per radiator
+      const baseLoss = totalLoss / radiatorCount;
+      //const baseLoss = lossMap[r.room] || 0;
       const elec     = r.elec || 0;
       const tin      = tinMap[r.room] || 20;
       const qNom     = r.power || 2000;
@@ -101,7 +110,11 @@ function computeRadiatorResults(
   } else {
     // ── Existing System: auto-compute required supply temperature ─────────
     const rows = radInputs.map(r => {
-      const heatLoss = (lossMap[r.room] || 0);
+      const totalLoss = (lossMap[r.room] || 0);
+      const radiatorCount = radiatorCountMap[r.room] || 1;
+    // split heat loss per radiator
+      const heatLoss = totalLoss / radiatorCount;
+      //const heatLoss = (lossMap[r.room] || 0);
       const elec     = r.elec || 0;
       const tin      = tinMap[r.room] || 20;
       const qNom     = r.power || 2000;
