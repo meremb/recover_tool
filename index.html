@@ -317,130 +317,207 @@ window.addEventListener('DOMContentLoaded', function () {
   <!-- ================================================================
        TAB 1 — RADIATORS & COLLECTORS
   ================================================================ -->
-  <div class="tab-content" id="tab1">
-    <div class="row">
+<div class="tab-content" id="tab1">
 
-      <!-- System config + pump check -->
-      <div class="col-3">
-        <div class="card">
-          <div class="card-header">🛠️ System Configuration</div>
-          <div class="card-body">
-            <div class="form-group">
-              <label class="form-label">Number of Radiators</label>
-              <input class="form-input" type="number" id="numRadiators" value="3" min="1" step="1" onchange="rebuildRadiatorTable()"/>
+  <div class="row">
+
+    <!-- LEFT COLUMN (System config spans visually two rows) -->
+    <div class="col-3">
+
+      <!-- System config -->
+      <div class="card">
+        <div class="card-header">🛠️ System Configuration</div>
+        <div class="card-body">
+
+          <div class="form-group">
+            <label class="form-label">Number of Radiators</label>
+            <input class="form-input" type="number" id="numRadiators" value="3" min="1" step="1"
+              onchange="rebuildRadiatorTable()"/>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Number of Collectors</label>
+            <input class="form-input" type="number" id="numCollectors" value="1" min="1" step="1"
+              onchange="rebuildCollectorTable()"/>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Delta T (°C)</label>
+            <input class="form-input" type="number" id="deltaT" value="10" min="3" max="20" step="1"/>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Supply Temperature (°C) <span class="text-muted">(optional)</span></label>
+            <input class="form-input" type="number" id="supplyTempInput"
+              placeholder="leave blank = auto"
+              oninput="onSupplyTempChange()"/>
+            <div class="form-hint">Blank → existing system mode. Fill in → LT dimensioning mode.</div>
+          </div>
+
+          <div id="calcModeHint" class="alert alert-secondary"
+            style="font-size:13px;padding:8px 12px;margin-top:4px">
+            🔍 Existing system mode: required supply temperature will be calculated.
+          </div>
+
+          <div class="form-group" style="margin-top:12px">
+            <label class="check-option">
+              <input type="checkbox" id="fixDiameter" onchange="toggleFixedDiam()"/>
+              Override diameter per radiator
+            </label>
+            <div class="form-hint">
+              When checked, a diameter column appears in the radiator table.
             </div>
-            <div class="form-group">
-              <label class="form-label">Number of Collectors</label>
-              <input class="form-input" type="number" id="numCollectors" value="1" min="1" step="1" onchange="rebuildCollectorTable()"/>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Delta T (°C)</label>
-              <input class="form-input" type="number" id="deltaT" value="10" min="3" max="20" step="1"/>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Supply Temperature (°C) <span class="text-muted">(optional)</span></label>
-              <input class="form-input" type="number" id="supplyTempInput" placeholder="leave blank = auto"
-                oninput="onSupplyTempChange()"/>
-              <div class="form-hint">Blank → existing system mode. Fill in → LT dimensioning mode.</div>
-            </div>
-            <div id="calcModeHint" class="alert alert-secondary" style="font-size:13px;padding:8px 12px;margin-top:4px">
-              🔍 Existing system mode: required supply temperature will be calculated.
-            </div>
-            <div class="form-group" style="margin-top:12px">
-              <label class="check-option">
-                <input type="checkbox" id="fixDiameter" onchange="toggleFixedDiam()"/>
-                Override diameter per radiator
-              </label>
-              <div class="form-hint">When checked, a diameter column appears in the radiator table.</div>
-            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- RIGHT SIDE -->
+    <div class="col-9">
+
+      <!-- Radiator inputs -->
+      <div class="card">
+        <div class="card-header">🌡️ Radiator Inputs</div>
+        <div class="card-body" style="padding:12px">
+          <div class="table-wrap">
+            <table id="radiatorTable">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Room</th>
+                  <th>Collector</th>
+                  <th>Power 75/65/20 (W)</th>
+                  <th>Circuit Length (m)</th>
+                  <th>Electric Power (W)</th>
+                  <th id="thDiameter" style="display:none">Pipe Diameter</th>
+                </tr>
+              </thead>
+              <tbody id="radiatorTableBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- Valve settings -->
-      <div class="col-3">
-        <div class="card">
-          <div class="card-header">🧩 Valve Settings</div>
-          <div class="card-body">
-            <div class="form-group">
-              <label class="form-label">Valve Type</label>
-              <select class="form-select" id="valveType" onchange="updateValveUI()">
-                <option value="Custom">Custom</option>
-                <option value="Danfoss RA-N 10 (3/8)">Danfoss RA-N 10 (3/8)</option>
-                <option value="Danfoss RA-N 15 (1/2)">Danfoss RA-N 15 (1/2)</option>
-                <option value="Danfoss RA-N 20 (3/4)">Danfoss RA-N 20 (3/4)</option>
-                <option value="Oventrop DN15 (1/2)">Oventrop DN15 (1/2)</option>
-                <option value="Heimeier (1/2)">Heimeier (1/2)</option>
-                <option value="Vogel und Noot">Vogel und Noot</option>
-                <option value="Comap">Comap</option>
-              </select>
+
+      <!-- SECOND ROW RIGHT SIDE -->
+      <div class="row" style="margin-top:16px">
+
+        <!-- Valve settings -->
+        <div class="col-4">
+
+          <div class="card">
+            <div class="card-header">🧩 Valve Settings</div>
+            <div class="card-body">
+
+              <div class="form-group">
+                <label class="form-label">Valve Type</label>
+                <select class="form-select" id="valveType" onchange="updateValveUI()">
+                  <option value="Custom">Custom</option>
+                  <option value="Danfoss RA-N 10 (3/8)">Danfoss RA-N 10 (3/8)</option>
+                  <option value="Danfoss RA-N 15 (1/2)">Danfoss RA-N 15 (1/2)</option>
+                  <option value="Danfoss RA-N 20 (3/4)">Danfoss RA-N 20 (3/4)</option>
+                  <option value="Oventrop DN15 (1/2)">Oventrop DN15 (1/2)</option>
+                  <option value="Heimeier (1/2)">Heimeier (1/2)</option>
+                  <option value="Vogel und Noot">Vogel und Noot</option>
+                  <option value="Comap">Comap</option>
+                </select>
+              </div>
+
+              <div id="valveSpecs"
+                class="text-muted"
+                style="margin-bottom:12px;font-size:12px"></div>
+
+              <div id="valveCustomSettings">
+                <div class="row" style="gap:8px">
+
+                  <div class="col">
+                    <div class="form-group">
+                      <label class="form-label">Positions</label>
+                      <input class="form-input"
+                        type="number"
+                        id="valvePositions"
+                        value="8"
+                        min="2"
+                        step="1"/>
+                    </div>
+                  </div>
+
+                  <div class="col">
+                    <div class="form-group">
+                      <label class="form-label">Kv max</label>
+                      <input class="form-input"
+                        type="number"
+                        id="valveKvMax"
+                        value="0.7"
+                        min="0.01"
+                        step="0.05"/>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
             </div>
-            <div id="valveSpecs" class="text-muted" style="margin-bottom:12px;font-size:12px"></div>
-            <div id="valveCustomSettings">
-              <div class="row" style="gap:8px">
-                <div class="col">
-                  <div class="form-group">
-                    <label class="form-label">Positions</label>
-                    <input class="form-input" type="number" id="valvePositions" value="8" min="2" step="1"/>
-                  </div>
-                </div>
-                <div class="col">
-                  <div class="form-group">
-                    <label class="form-label">Kv max</label>
-                    <input class="form-input" type="number" id="valveKvMax" value="0.7" min="0.01" step="0.05"/>
-                  </div>
-                </div>
+          </div>
+
+        </div>
+
+
+        <!-- Collectors -->
+        <div class="col-8">
+
+          <div class="card">
+            <div class="card-header">🧰 Collectors</div>
+            <div class="card-body" style="padding:12px">
+              <div class="table-wrap">
+                <table id="collectorTable">
+                  <thead>
+                    <tr>
+                      <th>Collector</th>
+                      <th>Circuit Length (m)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="collectorTableBody"></tbody>
+                </table>
               </div>
             </div>
           </div>
+
         </div>
+
       </div>
 
-      <!-- Radiator + collector tables -->
-      <div class="col-6">
-        <div class="card">
-          <div class="card-header">🌡️ Radiator Inputs</div>
-          <div class="card-body" style="padding:12px">
-            <div class="table-wrap">
-              <table id="radiatorTable">
-                <thead><tr>
-                  <th>#</th><th>Room</th><th>Collector</th>
-                  <th>Power 75/65/20 (W)</th><th>Circuit Length (m)</th><th>Electric Power (W)</th>
-                  <th id="thDiameter" style="display:none">Pipe Diameter</th>
-                </tr></thead>
-                <tbody id="radiatorTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">🧰 Collectors</div>
-          <div class="card-body" style="padding:12px">
-            <div class="table-wrap">
-              <table id="collectorTable">
-                <thead><tr><th>Collector</th><th>Circuit Length (m)</th></tr></thead>
-                <tbody id="collectorTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
-    <!-- Heat-loss split preview -->
-    <div class="card card-highlight">
-      <div class="card-header">📊 Radiator / Room Heat Loss Assignment</div>
-      <div class="card-body" style="padding:12px">
-        <div class="table-wrap" id="heatSplitTableWrap">
-          <div class="text-muted" style="padding:16px;text-align:center">Assign rooms in the radiator table above.</div>
+  </div>
+
+
+  <!-- Heat loss assignment -->
+  <div class="card card-highlight" style="margin-top:16px">
+    <div class="card-header">📊 Radiator / Room Heat Loss Assignment</div>
+    <div class="card-body" style="padding:12px">
+
+      <div class="table-wrap" id="heatSplitTableWrap">
+        <div class="text-muted"
+          style="padding:16px;text-align:center">
+          Assign rooms in the radiator table above.
         </div>
       </div>
-    </div>
 
-    <div style="text-align:right;margin-top:8px">
-      <button class="btn btn-primary" onclick="runCalculations()">▶ Run Calculations </button>
     </div>
   </div>
+
+
+  <div style="text-align:right;margin-top:8px">
+    <button class="btn btn-primary" onclick="runCalculations()">
+      ▶ Run Calculations
+    </button>
+  </div>
+
+</div>
 
   <!-- ================================================================
        TAB 2 — RESULTS
