@@ -110,15 +110,29 @@ function checkVelocities(radResults, colResults, maxVel = 0.5) {
   radResults.forEach(r => {
     const v = calcVelocity(r.mfr, r.diam);
     r.velocity = Math.round(v * 1000) / 1000;
-    if (v > maxVel)
-      warnings.push(`⚠ High velocity radiator ${r.id}: ${v.toFixed(2)} m/s > ${maxVel} m/s`);
+
+    if (v > maxVel) {
+      const level = v > 1 ? 3 : 2;
+
+      warnings.push({
+        message: `⚠ High velocity radiator ${r.id}: ${v.toFixed(2)} m/s > ${maxVel} m/s`,
+        level: level
+      });
+    }
   });
 
   colResults.forEach(c => {
     const v = calcVelocity(c.mfr, c.diam);
     c.velocity = Math.round(v * 1000) / 1000;
-    if (v > maxVel)
-      warnings.push(`⚠ High velocity collector ${c.name}: ${v.toFixed(2)} m/s > ${maxVel} m/s`);
+
+    if (v > maxVel) {
+      const level = v > 1 ? 3 : 2;
+
+      warnings.push({
+        message: `⚠ High velocity collector ${c.name}: ${v.toFixed(2)} m/s > ${maxVel} m/s`,
+        level: level
+      });
+    }
   });
 
   return { radResults, colResults, warnings };

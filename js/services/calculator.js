@@ -83,10 +83,11 @@ function computeRadiatorResults(
       const diam     = (r.fixedDiam != null) ? r.fixedDiam : autoDiam;
 
       if (r.fixedDiam != null && r.fixedDiam < autoDiam) {
-        warnings.push(
-          `⚠ Radiator ${r.id} (${r.room}): fixed Ø${r.fixedDiam} mm may be undersized ` +
-          `for flow ${Math.round(mfr)} kg/h (auto would select Ø${autoDiam} mm)`
-        );
+        warnings.push({
+          message: `⚠ Radiator ${r.id} (${r.room}): fixed Ø${r.fixedDiam} mm may be undersized ` +
+          `for flow ${Math.round(mfr)} kg/h (auto would select Ø${autoDiam} mm)`,
+          level: 1,
+        });
       }
 
       const pipeLoss     = calcPipePressureLoss(r.length, diam, mfr);
@@ -142,10 +143,11 @@ function computeRadiatorResults(
       const diam     = (r.fixedDiam != null) ? r.fixedDiam : uniformDiam;
 
       if (r.fixedDiam != null && r.fixedDiam < autoDiam) {
-        warnings.push(
-          `⚠ Radiator ${r.id} (${r.room}): fixed Ø${r.fixedDiam} mm may be undersized ` +
-          `for flow ${Math.round(mfr)} kg/h (auto would select Ø${autoDiam} mm)`
-        );
+        warnings.push({
+          message:`⚠ Radiator ${r.id} (${r.room}): fixed Ø${r.fixedDiam} mm may be undersized ` +
+          `for flow ${Math.round(mfr)} kg/h (auto would select Ø${autoDiam} mm)`,
+          level: 1,
+        });
       }
 
       const pipeLoss     = calcPipePressureLoss(r.length, diam, mfr);

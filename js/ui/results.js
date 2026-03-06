@@ -37,11 +37,47 @@ function renderResults() {
 
 function _renderWarnings(warnings) {
   const div = document.getElementById('resultsWarnings');
-  // Filter out the mode info line to show separately
-  const realWarnings = warnings.filter(w => !w.startsWith('ℹ️'));
+
+  const realWarnings = warnings.filter(w => w.message);
+
   if (realWarnings.length) {
-    div.innerHTML = realWarnings.map(w => `${w}`).join('<br/>');
+
+    div.innerHTML = realWarnings.map(w => {
+
+      let color, bg;
+
+      switch (w.level) {
+        case 1:
+          color = '#856404';
+          bg = '#fff3cd';
+          break;
+        case 2:
+          color = '#8a4b00';
+          bg = '#ffe5cc';
+          break;
+        case 3:
+          color = '#721c24';
+          bg = '#f8d7da';
+          break;
+        default:
+          color = '#555';
+          bg = '#eee';
+      }
+
+      return `
+        <div style="
+          border-left:5px solid ${color};
+          background:${bg};
+          padding:8px;
+          margin-bottom:6px;
+          border-radius:4px;
+        ">
+          ${w.message}
+        </div>`;
+    }).join('');
+
     div.style.display = 'block';
+
   } else {
     div.style.display = 'none';
   }
