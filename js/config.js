@@ -20,13 +20,14 @@ const MODE_FIXED     = 'fixed';
 // ---------------------------------------------------------------------------
 const INSULATION_U = {
   'not insulated': { wall: 1.3, roof: 1.0, ground: 1.2 },
-  'bit insulated':  { wall: 0.6, roof: 0.4, ground: 0.5 },
+  'bit insulated':  { wall: 0.5, roof: 0.6, ground: 0.4 },
   'insulated well': { wall: 0.3, roof: 0.2, ground: 0.3 },
 };
 
 const GLAZING_U = {
   single: 5.0,
   double: 2.8,
+  double HR: 1.1,
   triple: 0.8,
 };
 
