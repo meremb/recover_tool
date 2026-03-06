@@ -149,20 +149,39 @@ function renderHeatSplitTable() {
   const wrap = document.getElementById('heatSplitTableWrap');
 
   const lossMap = {};
-  state.roomResults.forEach(r => { lossMap[r.room] = r.totalHeatLoss; });
+  const radiatorCountMap = {};
+
+  // Populate the maps with room data
+  state.roomResults.forEach(r => {
+    lossMap[r.room] = r.totalHeatLoss;
+  });
+
+  // Count radiators per room
+  state.radiatorData.forEach(r => {
+    if (r.room) {
+      radiatorCountMap[r.room] = (radiatorCountMap[r.room] || 0) + 1;
+    }
+  });
 
   let html = `<table><thead><tr>
     <th>Radiator #</th><th>Room</th><th>Calculated Heat Loss (W)</th>
   </tr></thead><tbody>`;
 
   state.radiatorData.forEach(r => {
-    const loss = r.room && lossMap[r.room] !== undefined ? lossMap[r.room] : '—';
-    html += `<tr><td>${r.id}</td><td>${r.room || '—'}</td><td>${loss}</td></tr>`;
+    // Calculate the split heat loss for each radiator in the room
+    const room = r.room;
+    const totalLoss = lossMap[room];
+    const radiatorCount = radiatorCountMap[room] || 1;
+    const splitLoss = room && totalLoss !== undefined ? Math.round(totalLoss / radiatorCount) : '—';
+
+
+    html += `<tr><td>${r.id}</td><td>${r.room || '—'}</td><td>${splitLoss}</td></tr>`;
   });
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
 }
+
 
 // ---------------------------------------------------------------------------
 //  Run Calculations
