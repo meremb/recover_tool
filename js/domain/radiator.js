@@ -159,7 +159,7 @@ function calcExtraPowerNeeded(
   const extraActual = Math.max(0.0, heatLoss - availablePower);
 
   // ⭐ important: convert back to rated power
-  return extraActual / Math.pow(phi, EXPONENT_N);
+  return Math.round(extraActual / Math.pow(phi, EXPONENT_N));
 }
 
 /**
