@@ -16,7 +16,7 @@
  */
 function kvAtPosition(valveCfg, kvMax, nPositions, position) {
   if (valveCfg) {
-    const idx = Math.min(Math.max(position, 0), valveCfg.kv_values.length - 1);
+    const idx = Math.min(Math.max(position -1, 0), valveCfg.kv_values.length - 1);
     return valveCfg.kv_values[idx];
   }
   // Custom: position is 1-based from ceil(), map to [0, kvMax]
@@ -100,7 +100,7 @@ function computeValvePositions(radResults, valveCfg, kvMax, nPositions) {
     radResults.forEach(r => {
       let pos = kvValues.findIndex(kv => kv >= r.kvNeeded);
       if (pos < 0) pos = kvValues.length - 1; // fully open if still not enough
-      r.valvePos = pos;        // 0-based index (matches Python)
+      r.valvePos = pos + 1;        // 0-based index (matches Python)
       r.valveKv  = kvValues[pos];
     });
   } else {

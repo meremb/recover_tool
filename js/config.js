@@ -59,7 +59,7 @@ const WALL_OFFSET         = 0.3;
 const VENT_ACH = { C: 0.5, D: 0.5 * 0.3 };
 
 const T_FACTOR   = 49.83;
-const EXPONENT_N = 1.34;
+const EXPONENT_N = 1.30;
 
 const POSSIBLE_DIAMETERS = [8, 10, 12, 13, 14, 16, 20, 22, 25, 28, 36, 50];
 DELTA_T_REF = (75.0 + 65.0) / 2.0 - 20.0;
