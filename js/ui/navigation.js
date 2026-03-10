@@ -220,6 +220,7 @@ function runPumpCheck() {
         <th style="padding:7px 12px;text-align:right;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Head at req. flow</th>
         <th style="padding:7px 12px;text-align:right;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Margin</th>
         <th style="padding:7px 12px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Adequate?</th>
+        <th style="padding:7px 12px;text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Simulate</th>
       </tr></thead><tbody>`;
 
   speedResults.forEach(({ speedKey, op, headAtReq, adequate, color }) => {
@@ -250,6 +251,13 @@ function runPumpCheck() {
         ${adequate
           ? '<span style="color:#27ae60;font-weight:700;font-size:15px">✔</span>'
           : '<span style="color:#e74c3c;font-weight:700;font-size:15px">✘</span>'}
+      </td>
+      <td style="padding:7px 12px;text-align:center">
+        ${op
+          ? `<button onclick="runPumpSimulation('${speedKey}',${op ? op.q : 0},${op ? op.h : 0},'${color.label}')"
+              style="font-size:11px;padding:3px 10px;border:1px solid #bbb;border-radius:4px;
+                     background:#f8f9fa;cursor:pointer">Simulate</button>`
+          : '<span style="color:#aaa">—</span>'}
       </td>
     </tr>`;
   });
@@ -326,7 +334,8 @@ function runPumpCheck() {
 
   // ── Render HTML + canvas ───────────────────────────────────────────────────
   resultDiv.innerHTML = tableHtml +
-    `<div style="position:relative;height:340px"><canvas id="chartPumpCheck"></canvas></div>`;
+    `<div style="position:relative;height:340px"><canvas id="chartPumpCheck"></canvas></div>` +
+    `<div id="pumpSimResult" style="margin-top:24px"></div>`;
 
   // Destroy previous chart instance if any
   if (window._pumpCheckChart) { window._pumpCheckChart.destroy(); }
@@ -370,6 +379,178 @@ function runPumpCheck() {
       },
     }
   );
+}
+
+
+// ---------------------------------------------------------------------------
+//  Pump simulation — redistribute flow at actual operating point
+// ---------------------------------------------------------------------------
+
+/**
+ * Given the actual pump operating point (totalQ kg/h at pumpHead kPa),
+ * redistribute flow over all circuits proportionally to their hydraulic
+ * conductance, then recalculate radiator temperatures via EN 442 LMTD.
+ *
+ * Physics:
+ *   Each circuit i has resistance Ri [Pa/(kg/h)²] from design results.
+ *   All circuits share the same available pump head H_pump.
+ *   Flow per circuit: Q_i = sqrt(H_avail / Ri)  where H_avail = pumpHead*1000 - fixed losses
+ *   Total flow must equal operating point flow → iterate to find H_avail.
+ */
+function runPumpSimulation(speedKey, opQ, opH, speedLabel) {
+  const simDiv = document.getElementById('pumpSimResult');
+  if (!simDiv) return;
+  if (!state.calcResults) return;
+
+  const { radResults, colResults, fixedSupplyT, deltaT } = state.calcResults;
+  const pumpHeadPa = opH * 1000; // kPa → Pa
+
+  // Build tinMap for EN 442 recalculation
+  const tinMap = {};
+  if (state.heatMode === 'known') {
+    state.manualLossData.forEach((r, i) => {
+      tinMap[state.roomData[i]?.name || `Room ${r.id}`] = 20;
+    });
+  } else {
+    state.roomData.forEach(r => { tinMap[r.name || `Room ${r.id}`] = r.tin; });
+  }
+
+  // ── Step 1: compute hydraulic resistance per circuit ─────────────────────
+  // R_i = totalPressureLoss_i / mfr_i²  (Pa / (kg/h)²)
+  // totalPressureLoss already includes pipe + radiator body + collector + boiler
+  const circuits = radResults.map(r => {
+    const R = r.mfr > 0.01 ? r.totalPressureLoss / (r.mfr * r.mfr) : 1e6;
+    return { ...r, R };
+  });
+
+  // ── Step 2: find available head H_avail so that sum(sqrt(H/Ri)) = opQ ──
+  // Binary search on H_avail in [0, pumpHeadPa]
+  let lo = 0, hi = pumpHeadPa;
+  let hAvail = pumpHeadPa;
+  for (let iter = 0; iter < 60; iter++) {
+    hAvail = (lo + hi) / 2;
+    const qSum = circuits.reduce((s, c) => s + Math.sqrt(Math.max(hAvail, 0) / c.R), 0);
+    if (Math.abs(qSum - opQ) < 0.1) break;
+    if (qSum < opQ) hi = hAvail * 1.5 > pumpHeadPa ? pumpHeadPa : hAvail * 1.5;
+    // broaden search if needed
+    if (lo === 0 && hi === pumpHeadPa && qSum > opQ) { lo = 0; hi = hAvail; }
+    else if (qSum > opQ) hi = hAvail;
+    else lo = hAvail;
+  }
+
+  // ── Step 3: assign new flow per circuit ───────────────────────────────────
+  const simCircuits = circuits.map(c => {
+    const newMfr = Math.round(Math.sqrt(Math.max(hAvail, 0) / c.R) * 10) / 10;
+    return { ...c, simMfr: newMfr };
+  });
+
+  const totalSimMfr = simCircuits.reduce((s, c) => s + c.simMfr, 0);
+
+  // ── Step 4: recalculate temperatures via EN 442 ───────────────────────────
+  const simRows = simCircuits.map(c => {
+    const tRoom  = tinMap[c.room] || 20;
+    const qNom   = c.qNom || 2000;
+    const mDot   = c.simMfr;
+    const tSup   = (fixedSupplyT !== null) ? fixedSupplyT : c.supplyT;
+    const cp     = 4180 / 3600;
+    const lmtdNom = (75 - 20 - (65 - 20)) / Math.log((75 - 20) / (65 - 20)); // 49.83 K
+
+    let tRet = tSup - deltaT;
+    if (mDot >= MIN_FLOW) {
+      for (let i = 0; i < 30; i++) {
+        const dt1 = tSup - tRoom, dt2 = tRet - tRoom;
+        if (dt1 <= 0 || dt2 <= 0) { tRet = tSup - 0.1; break; }
+        const lmtdAct = Math.abs(dt1 - dt2) < 1e-6 ? dt1 : (dt1 - dt2) / Math.log(dt1 / dt2);
+        const qCalc   = qNom * Math.pow(lmtdAct / lmtdNom, EXPONENT_N);
+        const tRetNew = tSup - qCalc / (mDot * cp);
+        if (Math.abs(tRetNew - tRet) < 0.01) { tRet = tRetNew; break; }
+        tRet = tRetNew;
+      }
+    }
+
+    const dt1f = tSup - tRoom, dt2f = tRet - tRoom;
+    let actualOutput = 0;
+    if (dt1f > 0 && dt2f > 0) {
+      const lmtdFinal = Math.abs(dt1f - dt2f) < 1e-6 ? dt1f : (dt1f - dt2f) / Math.log(dt1f / dt2f);
+      actualOutput = Math.round(qNom * Math.pow(lmtdFinal / lmtdNom, EXPONENT_N));
+    }
+
+    const dMfr    = Math.round((mDot - c.mfr) * 10) / 10;
+    const dOutput = actualOutput - Math.round(c.heatLoss);
+
+    return {
+      id: c.id, room: c.room,
+      designMfr: c.mfr, simMfr: mDot,
+      deltaMfr: dMfr,
+      designSupplyT: c.supplyT, simSupplyT: Math.round(tSup * 10) / 10,
+      simReturnT: Math.round(tRet * 10) / 10,
+      designOutput: Math.round(c.heatLoss),
+      simOutput: actualOutput,
+      deltaOutput: dOutput,
+      sufficient: actualOutput >= c.heatLoss,
+    };
+  });
+
+  // ── Step 5: render ────────────────────────────────────────────────────────
+  const sign = v => v >= 0 ? `+${v}` : `${v}`;
+  const colStyle = v => v >= 0
+    ? 'color:#27ae60;font-weight:600' : 'color:#e74c3c;font-weight:600';
+
+  let html = `
+    <div style="border-top:2px solid #e0e6ea;padding-top:16px;margin-top:8px">
+      <h4 style="margin:0 0 4px;font-size:14px;color:#2c3e50">
+        Pump simulation — ${speedLabel}
+        <span style="font-weight:400;font-size:12px;color:#8fa3ad;margin-left:8px">
+          Operating point: ${opQ} kg/h @ ${opH} kPa
+        </span>
+      </h4>
+      <p style="font-size:12px;color:#8fa3ad;margin:0 0 12px">
+        Flow redistributed over circuits via hydraulic resistance.
+        Total simulated flow: <strong>${Math.round(totalSimMfr * 10) / 10} kg/h</strong>
+        (design: <strong>${Math.round(state.calcResults.totalMFR * 10) / 10} kg/h</strong>).
+        Temperatures recalculated via EN 442 LMTD.
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f4f6f8">
+          <th style="padding:6px 10px;text-align:left">#</th>
+          <th style="padding:6px 10px;text-align:left">Room</th>
+          <th style="padding:6px 10px;text-align:right">Design flow<br>(kg/h)</th>
+          <th style="padding:6px 10px;text-align:right">Sim flow<br>(kg/h)</th>
+          <th style="padding:6px 10px;text-align:right">Δ flow</th>
+          <th style="padding:6px 10px;text-align:right">Supply T<br>(°C)</th>
+          <th style="padding:6px 10px;text-align:right">Return T<br>(°C)</th>
+          <th style="padding:6px 10px;text-align:right">Design output<br>(W)</th>
+          <th style="padding:6px 10px;text-align:right">Sim output<br>(W)</th>
+          <th style="padding:6px 10px;text-align:right">Δ output</th>
+          <th style="padding:6px 10px;text-align:center">OK?</th>
+        </tr></thead><tbody>`;
+
+  simRows.forEach(r => {
+    html += `<tr style="border-bottom:1px solid #f0f0f0">
+      <td style="padding:6px 10px">${r.id}</td>
+      <td style="padding:6px 10px">${r.room}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">${r.designMfr}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">${r.simMfr}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">
+        <span style="${colStyle(r.deltaMfr)}">${sign(r.deltaMfr)}</span>
+      </td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">${r.simSupplyT}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">${r.simReturnT}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">${r.designOutput}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">${r.simOutput}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:monospace">
+        <span style="${colStyle(r.deltaOutput)}">${sign(r.deltaOutput)}</span>
+      </td>
+      <td style="padding:6px 10px;text-align:center">
+        ${r.sufficient
+          ? '<span style="color:#27ae60;font-weight:700">✔</span>'
+          : '<span style="color:#e74c3c;font-weight:700">✘</span>'}
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  simDiv.innerHTML = html;
 }
 
 // ---------------------------------------------------------------------------
