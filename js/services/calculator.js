@@ -48,9 +48,6 @@ function computeRadiatorResults(
   fixedSupplyT, deltaT,
   valveCfg, kvMax, nPositions, warnings,
 ) {
-  const kvValveOpen = valveCfg
-    ? valveCfg.kv_values[valveCfg.kv_values.length - 1]
-    : kvMax;
   const radiatorCountMap = {};
   state.radiatorData.forEach(r => {
     if (r.room) {
@@ -92,9 +89,6 @@ function computeRadiatorResults(
 
       const pipeLoss     = calcPipePressureLoss(r.length, diam, mfr);
       const totalLossRad = calcRadiatorKv(r.length, diam, mfr);
-      const valveLoss    = Math.round(
-        HYDRAULIC_CONST * Math.pow(Math.max(mfr, 0.001) / 1000 / kvValveOpen, 2) * 10
-      ) / 10;
 
       return {
         id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
@@ -103,7 +97,7 @@ function computeRadiatorResults(
         extraPower,
         supplyT: fixedSupplyT, returnT, mfr,
         diam, diamAuto: autoDiam, diamFixed: r.fixedDiam != null,
-        pipeLoss, totalLoss: totalLossRad, valveLoss, length: r.length,
+        pipeLoss, totalLoss: totalLossRad, length: r.length,
       };
     });
     return rows;
@@ -152,9 +146,6 @@ function computeRadiatorResults(
 
       const pipeLoss     = calcPipePressureLoss(r.length, diam, mfr);
       const totalLossRad = calcRadiatorKv(r.length, diam, mfr);
-      const valveLoss    = Math.round(
-        HYDRAULIC_CONST * Math.pow(Math.max(mfr, 0.001) / 1000 / kvValveOpen, 2) * 10
-      ) / 10;
 
       return {
         id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
@@ -163,7 +154,7 @@ function computeRadiatorResults(
         extraPower: 0,
         supplyT, returnT, mfr,
         diam, diamAuto: autoDiam, diamFixed: r.fixedDiam != null,
-        pipeLoss, totalLoss: totalLossRad, valveLoss, length: r.length,
+        pipeLoss, totalLoss: totalLossRad, length: r.length,
       };
     });
   }
@@ -192,10 +183,10 @@ function buildTotalPressures(radResults, colResults) {
     let downstream = 0;
     for (let i = Math.max(idx, 0); i < colNames.length; i++)
       downstream += colLossMap[colNames[i]] || 0;
-    r.totalCircuitLoss = Math.round((r.totalLoss + downstream + PRESSURE_BOILER) * 10) / 10;
+    r.totalPressureLoss = Math.round((r.totalLoss + downstream + PRESSURE_BOILER) * 10) / 10;
   });
 
-  return radResults.length ? Math.max(...radResults.map(r => r.totalCircuitLoss)) : 0;
+  return radResults.length ? Math.max(...radResults.map(r => r.totalPressureLoss)) : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +214,11 @@ function runFullCalculation(inputs) {
 
   computeValvePositions(radResults, valveCfg, kvMax, nPositions);
 
+  // maxPressure is the max of totalPressureValveCircuit (pipe + boiler + open valve)
+  const maxPressureFinal = radResults.length
+    ? Math.max(...radResults.map(r => r.totalPressureValveCircuit))
+    : maxPressure;
+
   const { warnings: velWarnings } = checkVelocities(radResults, colResults);
   warnings.push(...velWarnings);
 
@@ -238,7 +234,7 @@ function runFullCalculation(inputs) {
 
   return {
     radResults, colResults, warnings,
-    weightedDT, totalMFR, maxPressure,
+    weightedDT, totalMFR, maxPressure: maxPressureFinal,
     pumpCurvePoints, valveType, valveCfg,
     fixedSupplyT, deltaT, kvMax, nPositions,
   };

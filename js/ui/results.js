@@ -97,7 +97,7 @@ function _renderMetrics(radResults, totalMFR, weightedDT, maxPressure) {
   document.getElementById('mFlowRate').textContent       = Math.round(totalMFR * 10) / 10 + ' kg/h';
   document.getElementById('mDeltaT').textContent         = Math.round(weightedDT * 10) / 10 + ' °C';
   document.getElementById('mHighestSupply').textContent  = highestSupply + ' °C';
-  document.getElementById('mMaxPressure').textContent    = Math.round(maxPressure) + ' Pa';
+  document.getElementById('mMaxPressure').textContent    = Math.round(maxPressure) + ' Pa';  // totalPressureValveCircuit max
 }
 
 // ---------------------------------------------------------------------------
@@ -176,9 +176,9 @@ function _renderCharts(radResults, valveCfg) {
     data: { labels, datasets: [
       { label: 'Pipe Loss (Pa)', data: radResults.map(r => r.pipeLoss),
         backgroundColor: 'rgba(155,89,182,.7)', borderRadius: 4 },
-      { label: 'Valve Loss (Pa)', data: radResults.map(r => r.valveLoss),
+      { label: 'Valve Loss N (Pa)', data: radResults.map(r => r.valvePressureLossN),
         backgroundColor: 'rgba(230,126,34,.7)', borderRadius: 4 },
-      { label: 'Total Circuit (Pa)', data: radResults.map(r => r.totalCircuitLoss),
+      { label: 'Total Pressure Valve Circuit (Pa)', data: radResults.map(r => r.totalPressureValveCircuit),
         backgroundColor: 'rgba(41,128,185,.3)', borderRadius: 4 },
     ]},
     options: barOpts,
@@ -240,8 +240,9 @@ function renderMergedResultsTable(radResults) {
     ...(isFixed ? ['Extra Power (W)'] : ['q-ratio']),
     'Supply T (°C)', 'Return T (°C)',
     ...(hasActual ? ['Actual Output (W)'] : []),
-    'Flow (kg/h)', 'Diam (mm)', 'Pipe Loss (Pa)', 'Valve Loss (Pa)',
-    'Total ΔP (Pa)', 'Velocity (m/s)', 'Valve Pos', 'Kv needed',
+    'Flow (kg/h)', 'Diam (mm)', 'Pipe Loss (Pa)', 'Valve Loss N (Pa)',
+    'Total Pressure Loss (Pa)', 'Total Pressure Valve Circuit (Pa)', 'Pressure Diff Valve (Pa)',
+    'Velocity (m/s)', 'Valve Pos', 'Valve kv', 'Kv needed',
   ];
 
   let html = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
@@ -265,9 +266,10 @@ function renderMergedResultsTable(radResults) {
       <td>${r.supplyT}</td><td>${r.returnT}</td>
       ${hasActual ? `<td>${r.actualOutput}</td>` : ''}
       <td>${r.mfr}</td><td>${diamDisplay}</td>
-      <td>${r.pipeLoss}</td><td>${r.valveLoss}</td>
-      <td>${r.totalCircuitLoss}</td><td>${velBadge}</td>
-      <td>${posBadge}</td><td>${r.kvNeeded || '—'}</td>
+      <td>${r.pipeLoss}</td><td>${r.valvePressureLossN}</td>
+      <td>${r.totalPressureLoss}</td><td>${r.totalPressureValveCircuit}</td><td>${r.pressureDifferenceValve}</td>
+      <td>${velBadge}</td>
+      <td>${posBadge}</td><td>${r.valveKv != null ? r.valveKv : '—'}</td><td>${r.kvNeeded || '—'}</td>
     </tr>`;
   });
 
