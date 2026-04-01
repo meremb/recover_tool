@@ -66,13 +66,16 @@ function computeRadiatorResults(
       const tin      = tinMap[r.room] || 20;
       const qNom     = r.power || 2000;
 
+      const emitterType = r.emitterType || 'Radiator';
+      const n_exponent  = (EMITTER_TYPES[emitterType] || EMITTER_TYPES['Radiator']).n_exponent;
+
       const thermalLoad = baseLoss - elec;
       const returnTDesign = calcReturnTempFixed(fixedSupplyT, deltaT, tin);
-      const extraPower    = calcExtraPowerNeeded(qNom, thermalLoad, fixedSupplyT, deltaT, tin);
+      const extraPower    = calcExtraPowerNeeded(qNom, thermalLoad, fixedSupplyT, deltaT, tin, n_exponent);
       const qRatio      = (qNom + extraPower) > 0 ? thermalLoad / (qNom + extraPower) : 0;
       const boostedLoss = baseLoss + extraPower;
 
-      const returnTRaw = calcReturnTemp(fixedSupplyT, qRatio, tin);
+      const returnTRaw = calcReturnTemp(fixedSupplyT, qRatio, tin, n_exponent);
       const returnT    = Math.min(returnTRaw, fixedSupplyT - 0.1);
       const mfr        = calcMassFlowRate(boostedLoss, fixedSupplyT, returnT);
 
@@ -93,6 +96,7 @@ function computeRadiatorResults(
       return {
         id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
         heatLoss: baseLoss, qNom, elec,
+        emitterType, n_exponent,
         qRatio: Math.round(qRatio * 1000) / 1000,
         extraPower,
         supplyT: fixedSupplyT, returnT, mfr,
@@ -114,17 +118,19 @@ function computeRadiatorResults(
       const tin      = tinMap[r.room] || 20;
       const qNom     = r.power || 2000;
       const qRatio   = qNom > 0 ? (heatLoss-elec) / qNom : 0;
-      const supplyT  = calcSupplyTemp(qRatio, deltaT, tin);
-      return { r, heatLoss, elec, tin, qNom, qRatio, supplyT };
+      const emitterType = r.emitterType || 'Radiator';
+      const n_exponent = (EMITTER_TYPES[emitterType] || EMITTER_TYPES['Radiator']).n_exponent;
+      const supplyT  = calcSupplyTemp(qRatio, deltaT, tin, n_exponent);
+      return { r, heatLoss, elec, tin, qNom, qRatio, supplyT, emitterType, n_exponent };
     });
 
     const maxSupply = Math.max(...rows.map(x => x.supplyT));
 
     const resolved = rows.map(x => {
-      const { r, heatLoss, elec, tin, qNom, qRatio } = x;
-      const returnT  = calcReturnTemp(maxSupply, qRatio, tin);
+      const { r, heatLoss, elec, tin, qNom, qRatio, emitterType, n_exponent } = x;
+      const returnT  = calcReturnTemp(maxSupply, qRatio, tin, n_exponent);
       const mfr      = calcMassFlowRate(heatLoss, maxSupply, returnT);
-      return { r, heatLoss, elec, tin, qNom, qRatio, supplyT: maxSupply, returnT, mfr };
+      return { r, heatLoss, elec, tin, qNom, qRatio, supplyT: maxSupply, returnT, mfr, emitterType, n_exponent };
     });
 
     const uniformDiam = Math.max(
@@ -132,7 +138,7 @@ function computeRadiatorResults(
     );
 
     return resolved.map(x => {
-      const { r, heatLoss, elec, tin, qNom, qRatio, supplyT, returnT, mfr } = x;
+      const { r, heatLoss, elec, tin, qNom, qRatio, supplyT, returnT, mfr, emitterType, n_exponent } = x;
       const autoDiam = uniformDiam;
       const diam     = (r.fixedDiam != null) ? r.fixedDiam : uniformDiam;
 
@@ -150,6 +156,7 @@ function computeRadiatorResults(
       return {
         id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
         heatLoss, qNom, elec,
+        emitterType, n_exponent,
         qRatio: Math.round(qRatio * 1000) / 1000,
         extraPower: 0,
         supplyT, returnT, mfr,

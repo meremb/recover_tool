@@ -64,7 +64,7 @@ function rebuildRadiatorTable() {
     state.radiatorData.push({
       id: i, room: '', collector: defCol,
       power: 2000, length: 10, elec: 0,
-      fixedDiam: null,
+      fixedDiam: null, emitterType: 'Radiator',
     });
   }
   state.radiatorData = state.radiatorData.slice(0, n);
@@ -125,6 +125,13 @@ function renderRadiatorTable() {
           state.radiatorData[${i}].fixedDiam = isNaN(v) ? null : v;
         ">
           <option value="">auto</option>${diamOpts}
+        </select>
+      </td>
+      <td class="editable-cell">
+        <select onchange="state.radiatorData[${i}].emitterType=this.value">
+            ${Object.keys(EMITTER_TYPES).map(t =>
+                `<option value="${t}"${t===r.emitterType?' selected':''}>${t}</option>`
+            ).join('')}
         </select>
       </td>
     `;

@@ -17,9 +17,9 @@
  * @param {number} tin     - Room set-point [°C]
  * @returns {number} Supply temperature [°C]
  */
-function calcSupplyTemp(qRatio, deltaT, tin) {
+function calcSupplyTemp(qRatio, deltaT, tin, n_exponent) {
   if (qRatio <= 0) return Math.round((tin + Math.max(deltaT, 3)) * 10) / 10;
-  const c = Math.exp(deltaT / T_FACTOR / Math.pow(qRatio, 1 / EXPONENT_N));
+  const c = Math.exp(deltaT / T_FACTOR / Math.pow(qRatio, 1 / n_exponent));
   if (c <= 1) return Math.round((tin + Math.max(deltaT, 3)) * 10) / 10;
   return Math.round((tin + (c / (c - 1)) * deltaT) * 10) / 10;
 }
@@ -36,11 +36,11 @@ function calcSupplyTemp(qRatio, deltaT, tin) {
  * @param {number} tin     - Room temperature [°C]
  * @returns {number} Return temperature [°C]
  */
-function calcReturnTemp(supplyT, qRatio, tin) {
+function calcReturnTemp(supplyT, qRatio, tin, n_exponent) {
   const lift = supplyT - tin;
   if (lift <= 0) return supplyT;
-  const tret = Math.pow(qRatio, 1 / EXPONENT_N) * T_FACTOR *
-               (Math.pow(qRatio, 1 / EXPONENT_N) * T_FACTOR) / lift + tin;
+  const tret = Math.pow(qRatio, 1 / n_exponent) * T_FACTOR *
+               (Math.pow(qRatio, 1 / n_exponent) * T_FACTOR) / lift + tin;
   return Math.round(tret * 10) / 10;
 }
 
@@ -125,7 +125,8 @@ function calcExtraPowerNeeded(
   heatLoss,
   supplyTemp,
   deltaT,
-  spaceTemperature
+  spaceTemperature,
+  n_exponent
 ) {
   // numeric coercion like Python
   radiatorPower = Number(radiatorPower || 0.0);
@@ -154,12 +155,12 @@ function calcExtraPowerNeeded(
   const phi = Math.max(deltaTActual / DELTA_T_REF, 1e-6);
   const availablePower =
     Math.max(0.0, radiatorPower) *
-    Math.pow(phi, EXPONENT_N);
+    Math.pow(phi, n_exponent);
 
   const extraActual = Math.max(0.0, heatLoss - availablePower);
 
   // ⭐ important: convert back to rated power
-  return Math.round(extraActual / Math.pow(phi, EXPONENT_N));
+  return Math.round(extraActual / Math.pow(phi, n_exponent));
 }
 
 /**
@@ -199,7 +200,7 @@ function recalcTemperaturesEN442(radRows, deltaT, fixedSupplyT, tinMap) {
     for (let i = 0; i < 30; i++) {
       const lmtdAct = lmtd(tSup, tRet, tRoom);
       if (lmtdAct <= 0) { tRet = tSup - 0.1; break; }
-      const qCalc   = qNom * Math.pow(lmtdAct / lmtdNom, EXPONENT_N);
+      const qCalc   = qNom * Math.pow(lmtdAct / lmtdNom, n_exponent);
       const tRetNew = tSup - qCalc / (mDot * cp);
       if (Math.abs(tRetNew - tRet) < 0.01) { tRet = tRetNew; break; }
       tRet = tRetNew;
@@ -209,7 +210,7 @@ function recalcTemperaturesEN442(radRows, deltaT, fixedSupplyT, tinMap) {
     r.supplyT        = Math.round(tSup  * 10) / 10;
     r.returnT        = Math.round(tRet  * 10) / 10;
     r.actualOutput   = lmtdFinal > 0
-      ? Math.round(qNom * Math.pow(lmtdFinal / lmtdNom, EXPONENT_N) * 10) / 10
+      ? Math.round(qNom * Math.pow(lmtdFinal / lmtdNom, n_exponent) * 10) / 10
       : 0;
   });
 }

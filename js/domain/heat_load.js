@@ -51,7 +51,8 @@ function computeRoomHeatLoss(room, params, detail = false) {
                   (tin - GROUND_TEMP);
 
   // Window fraction: assume 20% of external wall area has glazing
-  transmission += wallExt * 0.2 * (u_glass - uw) * dT;
+  const glazingFrac = room.wallsExt >= 1 ? (room.glazingPct/100 || 0) : 0;
+  transmission += wallExt * glazingFrac * (u_glass - uw) * dT;
 
   // --- Ventilation losses ---
   const ventilation = _computeVentilation(room, params, dT, floorArea);

@@ -451,6 +451,7 @@ function runPumpSimulation(speedKey, opQ, opH, speedLabel) {
     const tRoom  = tinMap[c.room] || 20;
     const qNom   = c.qNom || 2000;
     const mDot   = c.simMfr;
+    const n_exponent = c.n_exponent || 1.3;
     const tSup   = (fixedSupplyT !== null) ? fixedSupplyT : c.supplyT;
     const cp     = 4180 / 3600;
     const lmtdNom = (75 - 20 - (65 - 20)) / Math.log((75 - 20) / (65 - 20)); // 49.83 K
@@ -461,7 +462,7 @@ function runPumpSimulation(speedKey, opQ, opH, speedLabel) {
         const dt1 = tSup - tRoom, dt2 = tRet - tRoom;
         if (dt1 <= 0 || dt2 <= 0) { tRet = tSup - 0.1; break; }
         const lmtdAct = Math.abs(dt1 - dt2) < 1e-6 ? dt1 : (dt1 - dt2) / Math.log(dt1 / dt2);
-        const qCalc   = qNom * Math.pow(lmtdAct / lmtdNom, EXPONENT_N);
+        const qCalc   = qNom * Math.pow(lmtdAct / lmtdNom, n_exponent);
         const tRetNew = tSup - qCalc / (mDot * cp);
         if (Math.abs(tRetNew - tRet) < 0.01) { tRet = tRetNew; break; }
         tRet = tRetNew;
@@ -472,7 +473,7 @@ function runPumpSimulation(speedKey, opQ, opH, speedLabel) {
     let actualOutput = 0;
     if (dt1f > 0 && dt2f > 0) {
       const lmtdFinal = Math.abs(dt1f - dt2f) < 1e-6 ? dt1f : (dt1f - dt2f) / Math.log(dt1f / dt2f);
-      actualOutput = Math.round(qNom * Math.pow(lmtdFinal / lmtdNom, EXPONENT_N));
+      actualOutput = Math.round(qNom * Math.pow(lmtdFinal / lmtdNom, n_exponent));
     }
 
     const dMfr    = Math.round((mDot - c.mfr) * 10) / 10;

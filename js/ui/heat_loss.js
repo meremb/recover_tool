@@ -29,7 +29,7 @@ function rebuildRoomTable() {
     const i = state.roomData.length + 1;
     state.roomData.push({
       id: i, name: defaultRoomName(i),
-      tin: 20, area: 10, wallsExt: 2,
+      tin: 20, area: 10, wallsExt: 2, glazingPct: DEFAULT_GLAZING_PCT,
       type: 'Living', onGround: false, underRoof: false,
     });
   }
@@ -82,6 +82,11 @@ function renderRoomTable() {
             <option value="3"${r.wallsExt === 3 ? ' selected' : ''}>75%</option>
             <option value="4"${r.wallsExt === 4 ? ' selected' : ''}>100%</option>
         </select>
+      </td>
+      <td class="editable-cell">
+        <input type="number" value="${r.glazingPct}" min="0" max="90" step="10"
+          ${r.wallsExt < 1 ? 'disabled style="opacity:0.4"' : ''}
+          onchange="state.roomData[${i}].glazingPct=Math.min(90,Math.max(0,parseFloat(this.value)||20));triggerHeatCalc()"/>
       </td>
       <td class="editable-cell">
         <select onchange="state.roomData[${i}].type=this.value;triggerHeatCalc()">

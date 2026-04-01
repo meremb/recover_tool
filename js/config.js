@@ -56,10 +56,20 @@ const GROUND_FACTOR       = 1.15 * 1.45;
 const INFILTRATION_FACTOR = 0.34;
 const WALL_OFFSET         = 0.3;
 
+const DEFAULT_GLAZING_PCT = 20;  // default window-to-external-wall ratio [%]
+
+
 const VENT_ACH = { C: 0.5, D: 0.5 * 0.3 };
 
 const T_FACTOR   = 49.83;
 const EXPONENT_N = 1.30;
+
+const EMITTER_TYPES = {
+  'Radiator':        { n_exponent: 1.30, label: 'Panel radiator (n=1.30)' },
+  'Convector':       { n_exponent: 1.40, label: 'Natural convector (n=1.40)' },
+  'Ventiloconvector': { n_exponent: 1.00, label: 'Fan convector (n=1.00)' },
+};
+
 
 const POSSIBLE_DIAMETERS = [8, 10, 12, 13, 14, 16, 20, 22, 25, 28, 36, 50];
 DELTA_T_REF = (75.0 + 65.0) / 2.0 - 20.0;
