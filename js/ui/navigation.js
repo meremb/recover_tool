@@ -568,19 +568,108 @@ function toggleAccordion(btn) {
 // ---------------------------------------------------------------------------
 
 function showHelp() {
-  alert(
-    "Smart Heating Design Tool\n\n" +
-    "Tab 0: Configure heat-loss calculation mode.\n" +
-    "Tab 1: Set building envelope and rooms → heat losses calculated via EN 12831.\n" +
-    "Tab 2: Enter radiator data, collectors, valve type.\n" +
-    "       • Leave Supply Temperature blank → Existing System mode:\n" +
-    "         calculates the minimum required supply temperature.\n" +
-    "       • Fill in Supply Temperature → LT Dimensioning mode:\n" +
-    "         calculates extra power deficit per radiator.\n" +
-    "       After calculation, use the Pump Check to verify pump adequacy.\n" +
-    "Tab 3: View results, charts, and detailed tables.\n\n" +
-    "Physics: EN 12831 heat loss · EN 442 radiator model · hydraulic solver."
-  );
+  // Remove existing modal if open
+  const existing = document.getElementById('helpModal');
+  if (existing) { existing.remove(); return; }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'helpModal';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(0,0,0,0.45);
+    display:flex;align-items:center;justify-content:center;
+  `;
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="
+      background:#fff;border-radius:12px;max-width:640px;width:90%;
+      max-height:85vh;overflow-y:auto;padding:32px 36px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.25);position:relative;
+      font-family:'DM Sans',sans-serif;color:#2c3e50;line-height:1.6;
+    ">
+      <button onclick="document.getElementById('helpModal').remove()"
+        style="position:absolute;top:12px;right:16px;background:none;border:none;
+        font-size:22px;cursor:pointer;color:#8fa3ad;">✕</button>
+
+      <h2 style="margin:0 0 4px;font-size:22px;">Smart Heating Design Tool</h2>
+      <p style="margin:0 0 20px;font-size:13px;color:#8fa3ad;">
+        by Recover · v2.0
+      </p>
+
+      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">🏠 Step 1 — Heat Loss</h3>
+      <p style="font-size:13px;margin:0 0 6px;">
+        Configure your building envelope (insulation,u_value, glazing type) and define rooms.
+        Each room has its own indoor temperature, floor area, external wall exposure,
+        and glazing percentage (window-to-wall ratio on external walls).
+      </p>
+      <p style="font-size:13px;margin:0 0 6px;">
+        Choose between <strong>Unknown</strong> mode (the tool calculates heat losses
+        via simplified method based on EN 12831) or <strong>Known</strong> mode (enter your own heat loss per-room values).
+      </p>
+
+      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">🌡️ Step 2 — Radiators &amp; Collectors</h3>
+      <p style="font-size:13px;margin:0 0 6px;">
+        Define radiators with their rated power (75/65/20), circuit length, collector
+        assignment, and emitter type:
+      </p>
+      <ul style="font-size:13px;margin:4px 0 6px 20px;padding:0;">
+        <li><strong>Radiator</strong> — panel radiator (n = 1.30)</li>
+        <li><strong>Convector</strong> — natural convector (n = 1.40)</li>
+        <li><strong>Ventiloconvector</strong> — fan convector (n = 1.00)</li>
+      </ul>
+      <p style="font-size:13px;margin:0 0 6px;">
+        The EN 442 exponent <em>n</em> affects how radiator output scales with
+        temperature — fan convectors retain more capacity at low supply temperatures.
+      </p>
+      <p style="font-size:13px;margin:0 0 6px;">
+        <strong>Two calculation modes:</strong>
+      </p>
+      <ul style="font-size:13px;margin:4px 0 6px 20px;padding:0;">
+        <li>Leave Supply Temperature <strong>blank</strong> → <em>Existing System</em>:
+            calculates the minimum required supply temperature.</li>
+        <li>Fill in a Supply Temperature → <em>LT Dimensioning</em>:
+            calculates extra power needed per radiator at your target temperature.</li>
+      </ul>
+
+      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">📊 Step 3 — Results</h3>
+      <p style="font-size:13px;margin:0 0 6px;">
+        View performance metrics, power/temperature/pressure charts, valve positions,
+        and detailed tables. Use the <strong>Pump Check</strong> to verify whether a
+        selected pump can deliver the required flow at the system pressure.
+      </p>
+
+      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">⚙️ Standards &amp; Methods</h3>
+      <p style="font-size:13px;margin:0 0 6px;">
+        EN 12831 heat loss · NBN-D-50-001 ventilation · EN 442 radiator model ·
+        hydraulic network solver with TRV valve sizing.
+      </p>
+
+      <hr style="border:none;border-top:1px solid #e8ecef;margin:24px 0 16px;">
+
+      <h3 style="font-size:15px;margin:0 0 8px;color:#1a73e8;">📬 Contact</h3>
+      <p style="font-size:13px;margin:0 0 4px;">
+        Questions, feedback or feature requests?
+      </p>
+      <p style="font-size:13px;margin:0 0 4px;">
+        ✉️ <a href="mailto:bart.merema@buildwise.be" style="color:#1a73e8;">bart.merema@buildwise.be</a>
+        ✉️ <a href="mailto:jeroen.van.der.veken@buildwise.be" style="color:#1a73e8;">jeroen.van.der.veken@buildwise.be</a>
+      </p>
+      <p style="font-size:13px;margin:0 0 4px;">
+        🌐 <a href="https://www.coock-recover.be" target="_blank" style="color:#1a73e8;">www.coock-recover.be/</a>
+      </p>
+
+      <div style="text-align:right;margin-top:20px;">
+        <button onclick="document.getElementById('helpModal').remove()"
+          style="background:#1a73e8;color:#fff;border:none;border-radius:6px;
+          padding:8px 20px;cursor:pointer;font-size:13px;font-family:inherit;">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
 }
 
 // ---------------------------------------------------------------------------
