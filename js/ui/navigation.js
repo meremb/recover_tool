@@ -568,7 +568,6 @@ function toggleAccordion(btn) {
 // ---------------------------------------------------------------------------
 
 function showHelp() {
-  // Remove existing modal if open
   const existing = document.getElementById('helpModal');
   if (existing) { existing.remove(); return; }
 
@@ -583,70 +582,80 @@ function showHelp() {
 
   overlay.innerHTML = `
     <div style="
-      background:#fff;border-radius:12px;max-width:640px;width:90%;
+      background:#fff;border-radius:12px;max-width:580px;width:92%;
       max-height:85vh;overflow-y:auto;padding:32px 36px;
       box-shadow:0 20px 60px rgba(0,0,0,0.25);position:relative;
-      font-family:'DM Sans',sans-serif;color:#2c3e50;line-height:1.6;
+      font-family:'DM Sans',sans-serif;color:#2c3e50;line-height:1.7;
+      font-size:13.5px;
     ">
       <button onclick="document.getElementById('helpModal').remove()"
         style="position:absolute;top:12px;right:16px;background:none;border:none;
         font-size:22px;cursor:pointer;color:#8fa3ad;">✕</button>
 
-      <h2 style="margin:0 0 4px;font-size:22px;">Smart Heating Design Tool</h2>
-      <p style="margin:0 0 20px;font-size:13px;color:#8fa3ad;">
-        by Recover · v2.0
+      <h2 style="margin:0 0 16px;font-size:20px;">How to use this tool</h2>
+
+      <p>This tool helps you size radiators, check hydraulic balance, and verify
+      pump adequacy for hot-water heating systems. Work through the three steps in order.</p>
+
+      <h3 style="font-size:14px;margin:20px 0 6px;color:#1a73e8;">Step 1 — Heat Loss</h3>
+      <p>
+        If you already know each room's heat loss, switch to <strong>Known</strong> mode
+        and type them in. Otherwise, leave it on <strong>Unknown</strong> and the tool
+        will calculate them for you based on a simplified room by room heat loss calculation — just pick your insulation level or fill in u_values, glazing type,
+        and fill in the room table.
+      </p>
+      <p>
+        Each room has a <strong>Glazing %</strong> column: the share of the external
+        wall that is window. This is only active for rooms that have at least one
+        external wall.
       </p>
 
-      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">🏠 Step 1 — Heat Loss</h3>
-      <p style="font-size:13px;margin:0 0 6px;">
-        Configure your building envelope (insulation,u_value, glazing type) and define rooms.
-        Each room has its own indoor temperature, floor area, external wall exposure,
-        and glazing percentage (window-to-wall ratio on external walls).
+      <h3 style="font-size:14px;margin:20px 0 6px;color:#1a73e8;">Step 2 — Radiators &amp; Collectors</h3>
+      <p>
+        Add your radiators, assign each one to a room and a collector, and enter
+        the rated power (at 75/65/20). If a room has multiple radiators, the heat
+        loss is split evenly between them.
       </p>
-      <p style="font-size:13px;margin:0 0 6px;">
-        Choose between <strong>Unknown</strong> mode (the tool calculates heat losses
-        via simplified method based on EN 12831) or <strong>Known</strong> mode (enter your own heat loss per-room values).
+      <p>
+        Pick the <strong>emitter type</strong> per radiator — this matters because
+        fan convectors (ventiloconvectors) keep more of their capacity at low
+        temperatures than panel radiators do.
       </p>
-
-      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">🌡️ Step 2 — Radiators &amp; Collectors</h3>
-      <p style="font-size:13px;margin:0 0 6px;">
-        Define radiators with their rated power (75/65/20), circuit length, collector
-        assignment, and emitter type:
+      <p>
+        The <strong>Supply Temperature</strong> field controls the calculation mode:
       </p>
-      <ul style="font-size:13px;margin:4px 0 6px 20px;padding:0;">
-        <li><strong>Radiator</strong> — panel radiator (n = 1.30)</li>
-        <li><strong>Convector</strong> — natural convector (n = 1.40)</li>
-        <li><strong>Ventiloconvector</strong> — fan convector (n = 1.00)</li>
+      <ul style="margin:4px 0 10px 20px;padding:0;">
+        <li><strong>Leave it blank</strong> — the tool calculates what supply
+            temperature your system needs.</li>
+        <li><strong>Fill in a value</strong> (e.g. 45 °C for a heat pump) — the
+            tool tells you which radiators are undersized and how much extra
+            power you need.</li>
       </ul>
-      <p style="font-size:13px;margin:0 0 6px;">
-        The EN 442 exponent <em>n</em> affects how radiator output scales with
-        temperature — fan convectors retain more capacity at low supply temperatures.
-      </p>
-      <p style="font-size:13px;margin:0 0 6px;">
-        <strong>Two calculation modes:</strong>
-      </p>
-      <ul style="font-size:13px;margin:4px 0 6px 20px;padding:0;">
-        <li>Leave Supply Temperature <strong>blank</strong> → <em>Existing System</em>:
-            calculates the minimum required supply temperature.</li>
-        <li>Fill in a Supply Temperature → <em>LT Dimensioning</em>:
-            calculates extra power needed per radiator at your target temperature.</li>
-      </ul>
-
-      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">📊 Step 3 — Results</h3>
-      <p style="font-size:13px;margin:0 0 6px;">
-        View performance metrics, power/temperature/pressure charts, valve positions,
-        and detailed tables. Use the <strong>Pump Check</strong> to verify whether a
-        selected pump can deliver the required flow at the system pressure.
+      <p>
+        Choose your valve type from the catalogue (or set a custom one) and set
+        up your collectors with their pipe lengths.
       </p>
 
-      <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">⚙️ Standards &amp; Methods</h3>
+      <h3 style="font-size:14px;margin:20px 0 6px;color:#1a73e8;">Step 3 — Results</h3>
+      <p>
+        Hit <strong>▶ Run Calculations</strong> to see the full picture: supply/return
+        temperatures, flow rates, pressure losses, and recommended valve positions
+        for every circuit.
+      </p>
+      <p>
+        Use the <strong>Pump Check</strong> to see if your pump can handle the system.
+        Pick a model, and the tool plots the pump curves against your system curve.
+        Click <strong>Simulate</strong> on any speed to see how the flow actually
+        redistributes and whether every room still gets enough heat.
+      </p>
+
+      <hr style="border:none;border-top:1px solid #e8ecef;margin:24px 0 12px;">
+
+     <h3 style="font-size:15px;margin:20px 0 8px;color:#1a73e8;">⚙️ Standards &amp; Methods</h3>
       <p style="font-size:13px;margin:0 0 6px;">
-        EN 12831 heat loss · NBN-D-50-001 ventilation · EN 442 radiator model ·
+        Simplified method is based on EN 12831 heat loss · NBN-D-50-001 ventilation · EN 442 radiator model ·
         hydraulic network solver with TRV valve sizing.
       </p>
-
-      <hr style="border:none;border-top:1px solid #e8ecef;margin:24px 0 16px;">
-
       <h3 style="font-size:15px;margin:0 0 8px;color:#1a73e8;">📬 Contact</h3>
       <p style="font-size:13px;margin:0 0 4px;">
         Questions, feedback or feature requests?
