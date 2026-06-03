@@ -9,7 +9,7 @@
  *   - All form field values (envelope U-values, temperatures, valve settings, etc.)
  *
  * Usage:
- *   saveCase()  – downloads  <project-name>.htg.json
+ *   saveCase()  – downloads  <project-name>.json
  *   openCase()  – opens a file picker and restores everything
  */
 
@@ -49,11 +49,11 @@ function _applyFormValues(values) {
 // ---------------------------------------------------------------------------
 
 /**
- * Serialise the full application state + form values to a .htg.json file
+ * Serialise the full application state + form values to a .json file
  * and trigger a browser download.
  */
 function saveCase() {
-  const projectName = (document.getElementById('projectName')?.value || 'project').trim() || 'project';
+  const projectName = (prompt('Enter a name for this case:', 'my-project') || '').trim() || 'project';
 
   const payload = {
     _version:    1,
@@ -76,12 +76,12 @@ function saveCase() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `${projectName}.htg.json`;
+  a.download = `${projectName}.json`;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
 
-  _showToast(`✅ Case saved as "${projectName}.htg.json"`);
+  _showToast(`✅ Case saved as "${projectName}.json"`);
 }
 
 // ---------------------------------------------------------------------------
@@ -89,13 +89,13 @@ function saveCase() {
 // ---------------------------------------------------------------------------
 
 /**
- * Opens a file-picker for .htg.json files and restores the full application
+ * Opens a file-picker for .json files and restores the full application
  * state.  All tables are rebuilt, heat calculations re-run automatically.
  */
 function openCase() {
   const input    = document.createElement('input');
   input.type     = 'file';
-  input.accept   = '.json,.htg.json';
+  input.accept   = '.json';
 
   input.onchange = e => {
     const file = e.target.files[0];
@@ -147,7 +147,7 @@ function _restoreCase(p) {
   syncRoomDropdowns();
 
   // 4. Re-trigger valve UI so catalogue / custom panel shows correctly
-  if (typeof updateValueUI === 'function') updateValueUI_safe();
+  if (typeof updateValueUI === 'function') updateValveUI_safe();
 
   // 5. Re-run heat loss calculation
   runHeatCalc();
