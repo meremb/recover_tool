@@ -116,7 +116,7 @@ function computeRadiatorResults(
       //const heatLoss = (lossMap[r.room] || 0);
       const elec     = r.elec || 0;
       const tin      = tinMap[r.room] || 20;
-      const qNom     = r.power / radiatorCount || 2000;
+      const qNom     = r.power || 2000;
       const qRatio   = qNom > 0 ? (heatLoss-elec) / qNom : 0;
       const emitterType = r.emitterType || 'Radiator';
       const n_exponent = (EMITTER_TYPES[emitterType] || EMITTER_TYPES['Radiator']).n_exponent;
