@@ -42,8 +42,8 @@ function calcSupplyTemp(qRatio, deltaT, tin, n_exponent) {
  * @param {number} tin     - Room temperature [°C]
  * @returns {number} Return temperature [°C]
  */
-function calcReturnTemp(supplyT, qRatio, deltaT, tin, n_exponent) {
-  return Math.round((supplyT - deltaT * qRatio) * 10) / 10;
+function calcReturnTemp(supplyT, deltaT) {
+  return Math.round((supplyT - deltaT) * 10) / 10;
 }
 /**
  * In LT (fixed supply temperature) mode, the system runs at the design ΔT.
