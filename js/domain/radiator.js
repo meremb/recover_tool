@@ -19,15 +19,9 @@
  */
 function calcSupplyTemp(qRatio, deltaT, tin, n_exponent) {
   if (qRatio <= 0) return Math.round((tin + Math.max(deltaT, 3)) * 10) / 10;
-
-  const lmtdNom    = lmtd(75, 65, 20);                          // 49.83 K
-  const lmtdActual = lmtdNom * Math.pow(qRatio, 1 / n_exponent);
-  const deltaTAct  = deltaT * qRatio;                            // ← key fix
-
-  const r      = Math.exp(deltaTAct / lmtdActual);
-  const supplyT = (r * (deltaTAct + tin) - tin) / (r - 1);
-
-  return Math.round(supplyT * 10) / 10;
+  const c = Math.exp(deltaT / T_FACTOR / Math.pow(qRatio, 1 / n_exponent));
+  if (c <= 1) return Math.round((tin + Math.max(deltaT, 3)) * 10) / 10;
+  return Math.round((tin + (c / (c - 1)) * deltaT) * 10) / 10;
 }
 
 /**
@@ -42,9 +36,14 @@ function calcSupplyTemp(qRatio, deltaT, tin, n_exponent) {
  * @param {number} tin     - Room temperature [°C]
  * @returns {number} Return temperature [°C]
  */
-function calcReturnTemp(supplyT, deltaT) {
-  return Math.round((supplyT - deltaT) * 10) / 10;
+function calcReturnTemp(supplyT, qRatio, tin, n_exponent) {
+  const lift = supplyT - tin;
+  if (lift <= 0) return supplyT;
+  const tret = Math.pow(qRatio, 1 / n_exponent) * T_FACTOR *
+               (Math.pow(qRatio, 1 / n_exponent) * T_FACTOR) / lift + tin;
+  return Math.round(tret * 10) / 10;
 }
+
 /**
  * In LT (fixed supply temperature) mode, the system runs at the design ΔT.
  * T_return = T_supply − deltaT  (by design).

@@ -75,7 +75,7 @@ function computeRadiatorResults(
       const qRatio      = (qNom + extraPower) > 0 ? thermalLoad / (qNom + extraPower) : 0;
       const boostedLoss = baseLoss + extraPower;
 
-      const returnTRaw = calcReturnTemp(fixedSupplyT, qRatio, deltaT, tin, n_exponent);
+      const returnTRaw = calcReturnTemp(fixedSupplyT, qRatio, tin, n_exponent);
       const returnT    = Math.min(returnTRaw, fixedSupplyT - 0.1);
       const mfr        = calcMassFlowRate(boostedLoss, fixedSupplyT, returnT);
 
@@ -128,7 +128,7 @@ function computeRadiatorResults(
 
     const resolved = rows.map(x => {
       const { r, heatLoss, elec, tin, qNom, qRatio, emitterType, n_exponent } = x;
-      const returnT  = calcReturnTemp(maxSupply, qRatio, deltaT, tin, n_exponent);
+      const returnT  = calcReturnTemp(maxSupply, qRatio, tin, n_exponent);
       const mfr      = calcMassFlowRate(heatLoss, maxSupply, returnT);
       return { r, heatLoss, elec, tin, qNom, qRatio, supplyT: maxSupply, returnT, mfr, emitterType, n_exponent };
     });
