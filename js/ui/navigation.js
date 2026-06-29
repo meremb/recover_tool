@@ -372,7 +372,7 @@ function runPumpCheck() {
           y: {
             title: { display: true, text: 'Head (kPa)', font: { size: 12 } },
             min: 0,
-            max: 200,
+            max: 100,
             grid: { color: 'rgba(0,0,0,0.05)' },
           },
         },
