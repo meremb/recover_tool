@@ -191,7 +191,7 @@ function renderRoomResults() {
 
   const cols = known
     ? ['Room Name', 'Total Heat Loss (W)']
-    : ['Room Name', 'Total Heat Loss (W)', 'Transmission (W)', 'Ventilation (W)', 'Infiltration (W)', 'Neighbour (W)'];
+    : ['Room Name', 'Total Heat Loss (W)', 'Transmission (W)', 'Ventilation (W)', 'Infiltration (W)', 'Surrounding Zone (W)'];
 
   let html = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
 
