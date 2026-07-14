@@ -115,10 +115,18 @@ function renderManualTable() {
   tbody.innerHTML = '';
 
   state.manualLossData.forEach((r, i) => {
-    const name = state.roomData[i]?.name || `Room ${r.id}`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${name}</td>
+      <td class="text-muted" style="font-size:11px;padding:6px 10px">${r.id}</td>
+      <td class="editable-cell">
+        <input type="text" value="${r.name}" placeholder="e.g. Living Room"
+          style="min-width:130px"
+          onchange="
+            state.roomData[${i}].name=this.value.trim()||'Room ${r.id}';
+            syncRoomDropdowns();
+            triggerHeatCalc();
+          "/>
+      </td>
       <td class="editable-cell">
         <input type="number" value="${r.loss}" min="0" step="10"
           onchange="state.manualLossData[${i}].loss=parseFloat(this.value)||0;triggerHeatCalc()"/>
