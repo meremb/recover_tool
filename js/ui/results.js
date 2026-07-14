@@ -131,10 +131,13 @@ function _renderSummary(radResults, totalMFR, weightedDT, maxPressure, fixedSupp
 
 function _renderCharts(radResults, valveCfg) {
   const labels = radResults.map(r => `Rad ${r.id} (${r.room})`);
-  const barOpts = {
+const barOpts = {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'top' } },
-    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, beginAtZero: true }
+    },
   };
 
   // 1. Power distribution
@@ -143,14 +146,14 @@ function _renderCharts(radResults, valveCfg) {
     type: 'bar',
     data: { labels, datasets: [
       { label: 'Heat Loss (W)', data: radResults.map(r => r.heatLoss),
-        backgroundColor: 'rgba(192,57,43,.75)', borderRadius: 4 },
+        backgroundColor: 'rgba(192,57,43,.75)', borderRadius: 4, stack: 'loss' },
       { label: 'Radiator Power 75/65/20 (W)', data: radResults.map(r => r.qNom),
-        backgroundColor: 'rgba(41,128,185,.45)', borderRadius: 4 },
+        backgroundColor: 'rgba(41,128,185,.45)', borderRadius: 4, stack: 'rad' },
       { label: 'Electric power (W)', data: radResults.map(r => r.elec),
-        backgroundColor: 'rgba(192, 182, 43, 0.75)', borderRadius: 4 },
+        backgroundColor: 'rgba(192, 182, 43, 0.75)', borderRadius: 4, stack: 'elec' },
       ...(state.designMode === MODE_FIXED
         ? [{ label: 'Extra Power 75/65/20 (W)', data: radResults.map(r => r.extraPower || 0),
-             backgroundColor: 'rgba(230,126,34,.75)', borderRadius: 4 }]
+             backgroundColor: 'rgba(230,126,34,.75)', borderRadius: 4, stack: 'rad' }]
         : []),
     ]},
     options: barOpts,
