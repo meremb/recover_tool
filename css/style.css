@@ -175,7 +175,7 @@ canvas{max-width:100%!important}
 
 /* ===== TOOLTIP ===== */
 .tooltip{position:relative;cursor:pointer}
-.tooltiptext{visibility:hidden;min-width:130px;max-width:350px;background-color:var(--accent2);color:#fff;text-align:center;border-radius:5px;padding:5px;position:absolute;z-index:1;bottom:125%;left:50%;transform:translateX(-50%);opacity:0;transition:opacity .3s;line-height:20px}
+.tooltiptext{visibility:hidden;min-width:280px;max-width:350px;white-space: normal; word-wrap: break-word;background-color:var(--accent2);color:#fff;text-align:left;border-radius:5px;padding:5px;position:absolute;z-index:1;top:125%;left:-150%;transform:translateX(-50%);opacity:0;transition:opacity .3s;line-height:20px}
 .tooltip:hover .tooltiptext{visibility:visible;opacity:1}
 
 /* ===== MULTI-LEVEL SELECT ===== */
