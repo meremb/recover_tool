@@ -95,7 +95,7 @@ function _renderMetrics(radResults, totalMFR, weightedDT, maxPressure) {
   document.getElementById('mTotalHeatLoss').textContent  = totalHL + ' W';
   document.getElementById('mTotalPower').textContent     = totalPow + ' W';
   document.getElementById('mFlowRate').textContent       = Math.round(totalMFR * 10) / 10 + ' kg/h';
-  document.getElementById('mDeltaT').textContent         = Math.round(weightedDT * 10) / 10 + ' °C';
+  // document.getElementById('mDeltaT').textContent         = Math.round(weightedDT * 10) / 10 + ' °C';
   document.getElementById('mHighestSupply').textContent  = highestSupply + ' °C';
   document.getElementById('mMaxPressure').textContent    = Math.round(maxPressure) + ' Pa';  // totalPressureValveCircuit max
 }
