@@ -226,7 +226,16 @@ window.addEventListener('DOMContentLoaded', function () {
               </button>
               <div class="accordion-body">
                 <div class="form-group">
-                  <label class="form-label">Ventilation Method</label>
+                  <label class="form-label">Ventilation Method
+                    <span class="tooltip" style="margin-left: 6px;">
+                ℹ️
+                <span class="tooltiptext" style="text-align: left; font-size: 12px; font-weight: normal;">
+                  <strong>Simple:</strong> Quick calculation using ACH of 0.5.<br><br>
+                  <strong>NBN-D-50-001:</strong> Detailed Belgian norm calculation based on specific room supply, transfer, and extract requirements.
+                </span>
+              </span>
+
+                  </label>
                   <select class="form-select" id="ventCalcMethod" onchange="triggerHeatCalc()">
                     <option value="simple" selected>Simple</option>
                     <option value="NBN-D-50-001">NBN-D-50-001</option>
@@ -240,7 +249,7 @@ window.addEventListener('DOMContentLoaded', function () {
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Air Tightness v50 (1/h)</label>
+                  <label class="form-label">Air Tightness v50 (m3/h*m2)</label>
                   <input class="form-input" type="number" id="v50" value="6" step="0.5" min="0" max="12" onchange="triggerHeatCalc()"/>
                 </div>
               </div>
