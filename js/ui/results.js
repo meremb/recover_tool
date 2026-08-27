@@ -114,9 +114,8 @@ function _renderSummary(radResults, totalMFR, weightedDT, maxPressure, fixedSupp
 
   let html = `<strong>Mode:</strong> ${modeLabel} &nbsp;|&nbsp;
     Heat loss: <strong>${totalHL} W</strong> &nbsp;|&nbsp;
-    Radiator power: <strong>${totalPow} W</strong> &nbsp;|&nbsp;
+    Radiator power 75/65/20: <strong>${totalPow} W</strong> &nbsp;|&nbsp;
     Flow: <strong>${Math.round(totalMFR)} kg/h</strong> &nbsp;|&nbsp;
-    Weighted ΔT: <strong>${Math.round(weightedDT * 10) / 10} °C</strong> &nbsp;|&nbsp;
     Sys. pressure: <strong>${Math.round(maxPressure)} Pa</strong>`;
 
   if (fixedSupplyT !== null && totalExtraPow > 0)
