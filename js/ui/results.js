@@ -89,7 +89,7 @@ function _renderWarnings(warnings) {
 
 function _renderMetrics(radResults, totalMFR, weightedDT, maxPressure) {
   const totalHL       = radResults.reduce((s, r) => s + r.heatLoss, 0);
-  const totalPow      = radResults.reduce((s, r) => s + r.qNom, 0);
+  const totalPow      = radResults.reduce((s, r) => s + r.qActual, 0);
   const highestSupply = radResults.length ? Math.max(...radResults.map(r => r.supplyT)) : 0;
 
   document.getElementById('mTotalHeatLoss').textContent  = totalHL + ' W';
@@ -98,6 +98,7 @@ function _renderMetrics(radResults, totalMFR, weightedDT, maxPressure) {
   // document.getElementById('mDeltaT').textContent         = Math.round(weightedDT * 10) / 10 + ' °C';
   document.getElementById('mHighestSupply').textContent  = highestSupply + ' °C';
   document.getElementById('mMaxPressure').textContent    = Math.round(maxPressure) + ' Pa';  // totalPressureValveCircuit max
+  document.getElementById('mTotalPowerSupplyT').textContent = highestSupply + ' °C';
 }
 
 // ---------------------------------------------------------------------------
@@ -106,15 +107,16 @@ function _renderMetrics(radResults, totalMFR, weightedDT, maxPressure) {
 
 function _renderSummary(radResults, totalMFR, weightedDT, maxPressure, fixedSupplyT) {
   const totalHL       = radResults.reduce((s, r) => s + r.heatLoss, 0);
-  const totalPow      = radResults.reduce((s, r) => s + r.qNom, 0);
+  const totalPow      = radResults.reduce((s, r) => s + r.qActual, 0);
   const totalExtraPow = radResults.reduce((s, r) => s + (r.extraPower || 0), 0);
+  const highestSupply = radResults.length ? Math.max(...radResults.map(r => r.supplyT)) : 0; // ← nieuw
   const modeLabel     = fixedSupplyT !== null
     ? `LT Dimensioning (${fixedSupplyT} °C)`
     : 'Existing System';
 
   let html = `<strong>Mode:</strong> ${modeLabel} &nbsp;|&nbsp;
     Heat loss: <strong>${totalHL} W</strong> &nbsp;|&nbsp;
-    Radiator power 75/65/20: <strong>${totalPow} W</strong> &nbsp;|&nbsp;
+    Radiator power @ ${highestSupply} °C: <strong>${totalPow} W</strong> &nbsp;|&nbsp;
     Flow: <strong>${Math.round(totalMFR)} kg/h</strong> &nbsp;|&nbsp;
     Sys. pressure: <strong>${Math.round(maxPressure)} Pa</strong>`;
 
@@ -129,7 +131,11 @@ function _renderSummary(radResults, totalMFR, weightedDT, maxPressure, fixedSupp
 // ---------------------------------------------------------------------------
 
 function _renderCharts(radResults, valveCfg) {
+//console.log('CHART krijgt qActual:', radResults.map(r => r.qActual));
   const labels = radResults.map(r => `Rad ${r.id} (${r.room})`);
+  const highestSupply = radResults.length // ← toevoegen
+? Math.round(Math.max(...radResults.map(r => r.supplyT)) * 10) / 10
+: 0;
 const barOpts = {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'top' } },
@@ -146,12 +152,13 @@ const barOpts = {
     data: { labels, datasets: [
       { label: 'Heat Loss (W)', data: radResults.map(r => r.heatLoss),
         backgroundColor: 'rgba(192,57,43,.75)', borderRadius: 4, stack: 'loss' },
-      { label: 'Radiator Power 75/65/20 (W)', data: radResults.map(r => r.qNom),
+      { label: `Radiator Power (W) @ ${highestSupply} °C`, data: radResults.map(r => r.qActual),
         backgroundColor: 'rgba(41,128,185,.45)', borderRadius: 4, stack: 'rad' },
       { label: 'Electric power (W)', data: radResults.map(r => r.elec),
-        backgroundColor: 'rgba(192, 182, 43, 0.75)', borderRadius: 4, stack: 'elec' },
+        backgroundColor: 'rgba(192, 182, 43, 0.75)', borderRadius: 4, stack: 'rad' },
       ...(state.designMode === MODE_FIXED
-        ? [{ label: 'Extra Power 75/65/20 (W)', data: radResults.map(r => r.extraPower || 0),
+      /// de extra power hier moet nog herberekend worden op basis van de nieuwe supplyT, maar dat is nog niet geïmplementeerd nu nog genormaliseerd
+        ? [{ label: `Extra Power (W) @ ${highestSupply} °C`, data: radResults.map(r => r.extraPowerActual || 0),
              backgroundColor: 'rgba(230,126,34,.75)', borderRadius: 4, stack: 'rad' }]
         : []),
     ]},
@@ -238,8 +245,8 @@ function renderMergedResultsTable(radResults) {
     : parseInt(document.getElementById('valvePositions').value) || 8;
 
   const cols = [
-    '#', 'Room', 'Collector', 'Heat Loss (W)', 'Nom Power (W)',
-    ...(isFixed ? ['Extra Power (W)'] : ['q-ratio']),
+    '#', 'Room', 'Collector', 'Heat Loss (W)', 'Radiator Power 75/65/20 (W)',
+    ...(isFixed ? ['Extra Power 75/65/20 (W)'] : ['q-ratio']),
     'Supply T (°C)', 'Return T (°C)',
     ...(hasActual ? ['Actual Output (W)'] : []),
     'Flow (kg/h)', 'Diam (mm)', 'Pipe Loss (Pa)', 'Valve Loss N (Pa)',
@@ -286,7 +293,7 @@ function renderCollectorResultsTable(colResults) {
   colResults.forEach(c => {
     html += `<tr>
       <td>${c.name}</td><td>${Math.round(c.mfr)}</td><td>${c.diam}</td>
-      <td>${c.pipeLoss}</td><td>${c.colLoss}</td><td>${c.totalLoss}</td>
+      <td>${Math.round(c.pipeLoss)}</td><td>${Math.round(c.colLoss)}</td><td>${Math.round(c.totalLoss)}</td>
     </tr>`;
   });
   html += '</tbody></table>';

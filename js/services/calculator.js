@@ -79,6 +79,12 @@ function computeRadiatorResults(
       const returnT    = Math.min(returnTRaw, fixedSupplyT - 0.1);
       const mfr        = calcMassFlowRate(boostedLoss, fixedSupplyT, returnT);
 
+      // --- HIER TOEVOEGEN: Werkelijke Q op basis van de berekende temperaturen ---
+      const deltaTNom = 50; // of jouw standaard norm delta T
+      const tGemiddeld = (fixedSupplyT + returnT) / 2;
+      const qActual = Math.round(qNom * Math.pow((tGemiddeld - tin) / deltaTNom, n_exponent));
+      const extraPowerActual    = Math.round(extraPower * Math.pow((tGemiddeld - tin) / deltaTNom, n_exponent));
+      //console.log({ qNom, fixedSupplyT, returnT, tin, n_exponent, tGemiddeld: (fixedSupplyT + returnT) / 2 });
       const autoDiam = selectPipeDiam(Math.max(mfr, 0.1));
       const diam     = (r.fixedDiam != null) ? r.fixedDiam : autoDiam;
 
@@ -95,10 +101,10 @@ function computeRadiatorResults(
 
       return {
         id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
-        heatLoss: baseLoss, qNom, elec,
+        heatLoss: baseLoss, qNom, qActual, elec,
         emitterType, n_exponent,
         qRatio: Math.round(qRatio * 1000) / 1000,
-        extraPower,
+        extraPower, extraPowerActual,
         supplyT: fixedSupplyT, returnT, mfr,
         diam, diamAuto: autoDiam, diamFixed: r.fixedDiam != null,
         pipeLoss, totalLoss: totalLossRad, length: r.length,
@@ -153,9 +159,15 @@ function computeRadiatorResults(
       const pipeLoss     = calcPipePressureLoss(r.length, diam, mfr);
       const totalLossRad = calcRadiatorKv(r.length, diam, mfr);
 
+            // --- HIER TOEVOEGEN: Werkelijke Q op basis van de berekende temperaturen ---
+      const deltaTNom = 50; // of jouw standaard norm delta T
+      const tGemiddeld = (supplyT + returnT) / 2;
+      const qActual = Math.round(qNom * Math.pow((tGemiddeld - tin) / deltaTNom, n_exponent));
+      //console.log({ qNom, supplyT, returnT, tin, n_exponent, tGemiddeld: (supplyT + returnT) / 2 });
+
       return {
         id: r.id, room: r.room || '—', collector: r.collector || 'Collector 1',
-        heatLoss, qNom, elec,
+        heatLoss, qNom, qActual, elec,
         emitterType, n_exponent,
         qRatio: Math.round(qRatio * 1000) / 1000,
         extraPower: 0,
