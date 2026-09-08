@@ -178,19 +178,26 @@ const barOpts = {
     options: { ...barOpts, scales: { x: { grid: { display: false } }, y: { beginAtZero: false } } },
   });
 
-  // 3. Pressure loss
+  // 3. Pressure loss — opbouw tot Total Pressure Valve Circuit
   destroyChart('chartPressure');
   chartInstances['chartPressure'] = new Chart(document.getElementById('chartPressure'), {
     type: 'bar',
     data: { labels, datasets: [
       { label: 'Pipe Loss (Pa)', data: radResults.map(r => r.pipeLoss),
-        backgroundColor: 'rgba(155,89,182,.7)', borderRadius: 4 },
+        backgroundColor: 'rgba(155,89,182,.7)', borderRadius: 4, stack: 'loss' },
       { label: 'Valve Loss N (Pa)', data: radResults.map(r => r.valvePressureLossN),
-        backgroundColor: 'rgba(230,126,34,.7)', borderRadius: 4 },
-      { label: 'Total Pressure Valve Circuit (Pa)', data: radResults.map(r => r.totalPressureValveCircuit),
-        backgroundColor: 'rgba(41,128,185,.3)', borderRadius: 4 },
+        backgroundColor: 'rgba(230,126,34,.7)', borderRadius: 4, stack: 'loss' },
+      { label: 'Local + Collector + Boiler (Pa)',
+        data: radResults.map(r => r.totalPressureValveCircuit - r.pipeLoss - r.valvePressureLossN),
+        backgroundColor: 'rgba(41,128,185,.5)', borderRadius: 4, stack: 'loss' },
     ]},
-    options: barOpts,
+    options: {
+      ...barOpts,
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true },
+      },
+    },
   });
 
   // 4. Mass flow rate
@@ -244,19 +251,29 @@ function renderMergedResultsTable(radResults) {
     ? state.calcResults.valveCfg.positions
     : parseInt(document.getElementById('valvePositions').value) || 8;
 
-  const cols = [
-    '#', 'Room', 'Collector', 'Heat Loss (W)', 'Radiator Power 75/65/20 (W)',
-    ...(isFixed ? ['Extra Power 75/65/20 (W)'] : ['q-ratio']),
-    'Supply T (°C)', 'Return T (°C)',
-    ...(hasActual ? ['Actual Output (W)'] : []),
-    'Flow (kg/h)', 'Diam (mm)', 'Pipe Loss (Pa)', 'Valve Loss N (Pa)',
-    'Total Pressure Loss (Pa)', 'Total Pressure Valve Circuit (Pa)', 'Pressure Diff Valve (Pa)',
-    'Velocity (m/s)', 'Valve Pos', 'Valve kv', 'Kv needed',
+ // const cols = [
+ //   '#', 'Room', 'Collector', 'Heat Loss (W)', 'Radiator Power 75/65/20 (W)',
+ //   ...(isFixed ? ['Extra Power 75/65/20 (W)'] : ['q-ratio']),
+ //   'Supply T (°C)', 'Return T (°C)',
+ //   ...(hasActual ? ['Actual Output (W)'] : []),
+ //   'Flow (kg/h)', 'Diam (mm)', 'Pipe Loss (Pa)', 'Valve Loss N (Pa)',
+ //   'Total Pressure Loss (Pa)', 'Total Pressure Valve Circuit (Pa)', 'Pressure Diff Valve (Pa)',
+ //   'Velocity (m/s)', 'Valve Pos', 'Valve kv', 'Kv needed',
+ // ];
+
+    const cols = [
+    '#', 'Room', 'Collector', 'Heat Loss  <br>  (W)', 'Radiator Power <br> 75/65/20 (W)',
+    ...(isFixed ? ['Extra Power <br> 75/65/20 (W)'] : [] ),
+    'Supply T <br> (°C)', 'Return T <br> (°C)',
+    ...(hasActual ? ['Actual Output <br> (W)'] : []),
+    'Flow <br> (kg/h)', 'Diam <br> (mm)',
+    'Velocity <br> (m/s)', 'Valve <br> Position', 'Total Pressure <br> Valve Circuit (Pa)', 'Pressure Diff <br> Valve (Pa)'
   ];
+
 
   let html = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
 
-  radResults.forEach(r => {
+   radResults.forEach(r => {
     const velBadge = r.velocity > 0.5
       ? `<span class="badge badge-red">${r.velocity}</span>` : r.velocity;
     const posFrac  = (r.valvePos) / maxPos;
@@ -271,14 +288,12 @@ function renderMergedResultsTable(radResults) {
     html += `<tr>
       <td>${r.id}</td><td>${r.room}</td><td>${r.collector}</td>
       <td>${r.heatLoss}</td><td>${r.qNom}</td>
-      <td>${isFixed ? epBadge : r.qRatio}</td>
+      ${isFixed ? `<td>${epBadge}</td>` : ''}
       <td>${r.supplyT}</td><td>${r.returnT}</td>
       ${hasActual ? `<td>${r.actualOutput}</td>` : ''}
       <td>${r.mfr}</td><td>${diamDisplay}</td>
-      <td>${r.pipeLoss}</td><td>${r.valvePressureLossN}</td>
-      <td>${r.totalPressureLoss}</td><td>${r.totalPressureValveCircuit}</td><td>${r.pressureDifferenceValve}</td>
       <td>${velBadge}</td>
-      <td>${posBadge}</td><td>${r.valveKv != null ? r.valveKv : '—'}</td><td>${r.kvNeeded || '—'}</td>
+      <td>${posBadge}</td><td>${r.totalPressureValveCircuit}</td><td>${r.pressureDifferenceValve}</td>
     </tr>`;
   });
 
@@ -288,12 +303,15 @@ function renderMergedResultsTable(radResults) {
 
 function renderCollectorResultsTable(colResults) {
   const wrap = document.getElementById('collectorResultsWrap');
-  const cols = ['Collector', 'Flow (kg/h)', 'Diam (mm)', 'Pipe Loss (Pa)', 'Collector Loss (Pa)', 'Total Loss (Pa)'];
+  const cols = ['Collector', 'Flow (kg/h)', 'Diam (mm)', 'Velocity (m/s)',
+];
   let html = `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
   colResults.forEach(c => {
+    const velBadge = c.velocity > 1.0 // hier een hogere snelheid drempel voor collectoren, omdat ze groter zijn en hogere stroomsnelheden kunnen hebben
+      ? `<span class="badge badge-red">${c.velocity}</span>` : c.velocity;
     html += `<tr>
       <td>${c.name}</td><td>${Math.round(c.mfr)}</td><td>${c.diam}</td>
-      <td>${Math.round(c.pipeLoss)}</td><td>${Math.round(c.colLoss)}</td><td>${Math.round(c.totalLoss)}</td>
+      <td>${velBadge}</td>
     </tr>`;
   });
   html += '</tbody></table>';
