@@ -216,3 +216,63 @@ h6{font-size:14px;font-weight:700;margin-bottom:8px;color:var(--text2)}
 /* ===== RESPONSIVE ===== */
 @media(max-width:900px){.col-3,.col-4,.col-6,.col-8,.col-9{flex:0 0 100%}.metrics-row .metric-card{flex:0 0 calc(50% - 6px)}}
 @media(max-width:600px){.tab-btn{padding:8px 12px;font-size:14px}.app-container{padding:12px 8px}.metrics-row .metric-card{flex:0 0 100%}}
+
+
+#radiatorTable {
+  width: 100%;
+  table-layout: fixed;
+}
+
+#radiatorTable th,
+#radiatorTable td {
+  padding: 6px;
+  vertical-align: middle;
+}
+
+/* 1. Nummer */
+#radiatorTable th:nth-child(1),
+#radiatorTable td:nth-child(1) {
+  width: 35px;
+}
+
+/* 2. Room */
+#radiatorTable th:nth-child(2),
+#radiatorTable td:nth-child(2) {
+  width: 130px;
+}
+
+/* 3. Collector */
+#radiatorTable th:nth-child(3),
+#radiatorTable td:nth-child(3) {
+  width: 110px;
+}
+
+/* 4. Radiator power */
+#radiatorTable th:nth-child(4),
+#radiatorTable td:nth-child(4) {
+  width: 105px;
+}
+
+/* 5. Circuit length */
+#radiatorTable th:nth-child(5),
+#radiatorTable td:nth-child(5) {
+  width: 85px;
+}
+
+/* 6. Electric power */
+#radiatorTable th:nth-child(6),
+#radiatorTable td:nth-child(6) {
+  width: 90px;
+}
+
+/* 7. Pipe diameter */
+#radiatorTable th:nth-child(7),
+#radiatorTable td:nth-child(7) {
+  width: 90px;
+}
+
+/* 8. Emitter type */
+#radiatorTable th:nth-child(8),
+#radiatorTable td:nth-child(8) {
+  width: 110px;
+}
